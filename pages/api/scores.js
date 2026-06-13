@@ -1,33 +1,28 @@
 // pages/api/scores.js
-// Proxies ESPN's PGA Tour scoreboard — auto-detects the current tournament.
+// Proxies ESPN's PGA Tour scoreboard.
+//
+// CUT DETECTION: ESPN removes cut players from the competitor list after R2.
+// We detect this by:
+//   1. Counting max linescores across all competitors (= current round)
+//   2. Any picked player absent from the list when currentRound >= 3 = CUT
+//   3. Also triggers when the event status is FINAL (tournament over)
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-
   try {
-    const espnUrl =
-      'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
-
-    const response = await fetch(espnUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GolfPool/1.0)' },
-    });
-
-    if (!response.ok) {
-      return res.status(502).json({ error: `ESPN returned ${response.status}` });
-    }
-
+    const response = await fetch(
+      'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard',
+      { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GolfPool/1.0)' } }
+    );
+    if (!response.ok) return res.status(502).json({ error: `ESPN returned ${response.status}` });
     const raw = await response.json();
     const parsed = parseESPN(raw);
-
     res.setHeader('Cache-Control', 's-maxage=45, stale-while-revalidate=60');
     return res.status(200).json(parsed);
   } catch (err) {
-    console.error('ESPN fetch error:', err);
     return res.status(500).json({ error: err.message });
   }
 }
-
-// ── Parsing ────────────────────────────────────────────────────────────────────
 
 function normalizeName(name) {
   return name
@@ -43,7 +38,7 @@ function parseScore(str) {
   if (str === null || str === undefined) return null;
   const s = String(str).trim();
   if (s === 'E' || s === 'EVEN') return 0;
-  if (s === '--' || s === '' || s === 'CUT' || s === 'WD') return null;
+  if (s === '--' || s === '') return null;
   const n = parseInt(s, 10);
   return isNaN(n) ? null : n;
 }
@@ -54,47 +49,36 @@ function formatScore(score) {
   return score > 0 ? `+${score}` : `${score}`;
 }
 
-function parseStatus(comp) {
-  const type = ((comp.status || {}).type || {});
-  const name = (type.name || '').toUpperCase();
-  const desc = (type.description || '').toUpperCase();
-  const shortDetail = (comp.status?.shortDetail || '').toUpperCase();
-
-  if (name.includes('CUT') || desc.includes('CUT') || shortDetail.includes('CUT') ||
-      name === 'STATUS_MISSED_CUT') return 'MC';
-  if (name.includes('WITHDRAW') || desc.includes('WITHDRAW') || shortDetail.includes('WD') ||
-      name === 'STATUS_WITHDRAWN' || name === 'STATUS_DQ') return 'WD';
-  return 'Active';
-}
-
 function parseESPN(json) {
   const events = json.events || [];
 
-  // Pick the most relevant event:
-  // Priority: in-progress > most recent closed > next scheduled
-  let chosenEvent = null;
-
-  const inProgress = events.find(e =>
+  // Prefer in-progress, then most recent
+  let chosenEvent = events.find(e =>
     (e.status?.type?.name || '').includes('IN_PROGRESS')
-  );
-  if (inProgress) {
-    chosenEvent = inProgress;
-  } else {
-    // Most recently completed or upcoming
-    chosenEvent = events[events.length - 1] || events[0] || null;
-  }
+  ) || events[events.length - 1] || events[0] || null;
 
   if (!chosenEvent) {
-    return { tournament: null, golfers: [], lastUpdated: new Date().toISOString() };
+    return { tournament: null, golfers: [], currentRound: 0, cutHasHappened: false, lastUpdated: new Date().toISOString() };
   }
 
   const competition = (chosenEvent.competitions || [])[0] || {};
   const competitors = competition.competitors || [];
+  const par = competition.situation?.parTotal || 72;
 
-  // Detect par from competition details (fallback 72)
-  const par = competition.situation?.parTotal
-    || chosenEvent.competitions?.[0]?.situation?.parTotal
-    || 72;
+  const tStatus = (chosenEvent.status || {}).type || {};
+  const isFinal = tStatus.name === 'STATUS_FINAL' || !!tStatus.completed;
+  const isInProgress = (tStatus.name || '').includes('IN_PROGRESS');
+
+  // Count max rounds played by any competitor in the field
+  const maxLinescores = competitors.reduce((max, c) =>
+    Math.max(max, (c.linescores || []).length), 0
+  );
+
+  // Current round: use ESPN's period/round if available, else infer from linescores
+  const currentRound = competition.period || maxLinescores || 0;
+
+  // Cut has happened once R3 starts, or when the event is final
+  const cutHasHappened = isFinal || currentRound >= 3;
 
   const golfers = competitors.map(comp => {
     const athlete = comp.athlete || {};
@@ -112,34 +96,28 @@ function parseESPN(json) {
     }
 
     const totalRaw = parseScore(comp.score);
-    const status = parseStatus(comp);
-    const isCutOrWD = status === 'MC' || status === 'WD';
+
+    // Cut detection: when the field is in R3+, players with only 2 linescores
+    // completed R1+R2 but did not advance — they missed the cut.
+    const missedCut = cutHasHappened && linescores.length <= 2;
 
     return {
       name,
       nameKey: normalizeName(name),
       r1: rounds[0], r2: rounds[1], r3: rounds[2], r4: rounds[3],
-      total: isCutOrWD ? null : totalRaw,
-      displayTotal: status === 'MC' ? 'CUT' : status === 'WD' ? 'WD' : formatScore(totalRaw),
-      status,
-      statusRaw: (comp.status?.type?.name || '') + '|' + (comp.status?.type?.description || ''),
+      total: missedCut ? null : totalRaw,
+      displayTotal: missedCut ? 'CUT' : formatScore(totalRaw),
+      status: missedCut ? 'MC' : 'Active',
       position: comp.status?.position?.displayText || null,
     };
   });
 
-  // Sort by total (ascending, nulls last)
   golfers.sort((a, b) => {
     if (a.total === null && b.total === null) return 0;
     if (a.total === null) return 1;
     if (b.total === null) return -1;
     return a.total - b.total;
   });
-
-  const tStatus = (chosenEvent.status || {}).type || {};
-
-  // Extract dates
-  const startDate = chosenEvent.competitions?.[0]?.date
-    || chosenEvent.date || null;
 
   return {
     tournament: {
@@ -153,11 +131,12 @@ function parseESPN(json) {
         return [v.city, v.state, v.country].filter(Boolean).join(', ');
       })(),
       status: tStatus.description || 'Scheduled',
-      isLive: tStatus.name === 'STATUS_IN_PROGRESS',
-      isFinal: tStatus.name === 'STATUS_FINAL' || tStatus.completed,
-      startDate,
+      isLive: isInProgress,
+      isFinal,
       par,
     },
+    currentRound,
+    cutHasHappened,  // explicit flag — true when R3+ or event final
     golfers,
     lastUpdated: new Date().toISOString(),
   };
