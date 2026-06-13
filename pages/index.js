@@ -619,6 +619,10 @@ export default function Home() {
         setTimeout(() => setShowPin(true), 400);
       } else if (!res.ok || data.error) {
         setSaveStatus('error');
+        console.error('Save error:', data);
+        // Show the actual error in the UI temporarily
+        setPinError(data.error || `HTTP ${res.status}`);
+        setTimeout(() => { setSaveStatus('idle'); setPinError(''); }, 8000);
       } else {
         setSaveStatus('saved');
         // Also cache locally so this device always has the latest
