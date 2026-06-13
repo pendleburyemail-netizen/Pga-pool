@@ -1,89 +1,79 @@
 // pages/api/picks.js
-// Stores pool picks as a JSON file in Vercel Blob storage.
-// Uses BLOB_STORE_ID + VERCEL_OIDC_TOKEN (current Vercel auth method).
-// Falls back to BLOB_READ_WRITE_TOKEN if present (legacy).
-//
-// GET  /api/picks  — load current picks (all devices)
-// POST /api/picks  — save picks (requires POOL_PIN)
+// Stores pool picks in Vercel Blob as a JSON file.
+// Uses BLOB_STORE_ID (OIDC auth — current Vercel standard).
 
-import { put, list } from '@vercel/blob';
+import { put, list, del } from '@vercel/blob';
 
 const PICKS_PATHNAME = 'pga-pool-picks.json';
-
-function isConfigured() {
-  return !!(process.env.BLOB_STORE_ID || process.env.BLOB_READ_WRITE_TOKEN);
-}
-
-async function loadPicks() {
-  try {
-    const { blobs } = await list({ prefix: PICKS_PATHNAME });
-    if (!blobs || blobs.length === 0) return null;
-    const blob = blobs[0];
-    const res = await fetch(blob.downloadUrl);
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (e) {
-    console.error('Blob load error:', e);
-    return null;
-  }
-}
-
-async function savePicks(participants) {
-  await put(PICKS_PATHNAME, JSON.stringify(participants), {
-    access: 'public',
-    allowOverwrite: true,
-    contentType: 'application/json',
-    addRandomSuffix: false,
-  });
-}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  // Debug info to help diagnose env var issues
-  const envDebug = {
-    hasBlobStoreId: !!process.env.BLOB_STORE_ID,
-    hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
-    hasOidcToken: !!process.env.VERCEL_OIDC_TOKEN,
-    hasPoolPin: !!process.env.POOL_PIN,
-  };
+  const hasBlobStoreId = !!process.env.BLOB_STORE_ID;
+  const hasBlobToken   = !!process.env.BLOB_READ_WRITE_TOKEN;
 
-  if (!isConfigured()) {
+  if (!hasBlobStoreId && !hasBlobToken) {
     return res.status(503).json({
-      error: 'Blob not configured',
-      hint: 'BLOB_STORE_ID not found. Check Storage is connected to this project in Vercel dashboard.',
-      env: envDebug,
+      error: 'Blob not configured — BLOB_STORE_ID missing',
+      env: { hasBlobStoreId, hasBlobToken, hasPoolPin: !!process.env.POOL_PIN },
     });
   }
 
+  // ── GET ─────────────────────────────────────────────────────────────────────
   if (req.method === 'GET') {
     try {
-      const picks = await loadPicks();
-      return res.status(200).json({
-        participants: picks || null,
-        isDefault: !picks,
-        env: envDebug,
-      });
+      const { blobs } = await list({ prefix: PICKS_PATHNAME });
+      if (!blobs || blobs.length === 0) {
+        return res.status(200).json({ participants: null, isDefault: true });
+      }
+      // Fetch the blob content via its URL
+      const blob = blobs[0];
+      const url  = blob.downloadUrl || blob.url;
+      const r    = await fetch(url);
+      if (!r.ok) throw new Error(`Blob fetch failed: ${r.status}`);
+      const participants = await r.json();
+      return res.status(200).json({ participants, isDefault: false });
     } catch (e) {
-      return res.status(500).json({ error: e.message, env: envDebug });
+      console.error('GET /api/picks error:', e);
+      return res.status(500).json({ error: e.message });
     }
   }
 
+  // ── POST ────────────────────────────────────────────────────────────────────
   if (req.method === 'POST') {
     const { participants, pin } = req.body || {};
-    const correctPin = process.env.POOL_PIN || '1234';
-    if (String(pin) !== String(correctPin)) {
+
+    // PIN check
+    const correctPin = String(process.env.POOL_PIN || '1234');
+    if (String(pin) !== correctPin) {
       return res.status(403).json({ error: 'Incorrect PIN' });
     }
+
     if (!Array.isArray(participants) || participants.length === 0) {
       return res.status(400).json({ error: 'Invalid participants data' });
     }
+
     try {
-      await savePicks(participants);
-      return res.status(200).json({ ok: true });
+      // Delete old version first to avoid URL proliferation
+      try {
+        const { blobs } = await list({ prefix: PICKS_PATHNAME });
+        for (const b of blobs) await del(b.url);
+      } catch {}
+
+      // Write new version
+      const blob = await put(PICKS_PATHNAME, JSON.stringify(participants), {
+        access: 'public',
+        contentType: 'application/json',
+        addRandomSuffix: false,
+      });
+
+      return res.status(200).json({ ok: true, url: blob.url });
     } catch (e) {
-      console.error('Blob save error:', e);
-      return res.status(500).json({ error: e.message, env: envDebug });
+      console.error('POST /api/picks error:', e.message, e.stack);
+      return res.status(500).json({
+        error: e.message,
+        type: e.constructor?.name,
+      });
     }
   }
 
