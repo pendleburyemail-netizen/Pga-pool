@@ -178,7 +178,7 @@ function SetupTab({ participants, onChange, fieldNames }) {
         <div className="card-header">⚙️ Pool Setup</div>
         <div className="card-body">
           <div className="notice notice-info" style={{ marginBottom: 16 }}>
-            Each participant picks {PICKS_PER_PARTICIPANT} golfers. Best {BEST_N} active (non-eliminated) scores count. MC/WD players are excluded.
+            Each participant picks {PICKS_PER_PARTICIPANT} golfers. The best {BEST_N} scores count toward your total — never more than {BEST_N}. Players who miss the cut or withdraw are eliminated and not counted.
             {!hasField && ' ⏳ Loading field from ESPN…'}
             {hasField && ` Field: ${fieldNames.length} players.`}
           </div>
@@ -229,7 +229,7 @@ function SetupTab({ participants, onChange, fieldNames }) {
 function ParticipantCard({ p, rank }) {
   const medals = ['🥇', '🥈', '🥉'];
 
-  // Sort picks: active by score asc, then MC/WD at end
+  // Sort picks: active by score asc, then unscored (no data yet), then eliminated last
   const sortedPicks = [...p.scoredPicks].sort((a, b) => {
     if (!a.name && !b.name) return 0;
     if (!a.name) return 1;
@@ -243,8 +243,10 @@ function ParticipantCard({ p, rank }) {
     return a.score - b.score;
   });
 
+  // The best BEST_N active picks (already sorted above) are the counting ones
   const activePicks = sortedPicks.filter(sp => sp.name && !sp.eliminated && sp.score !== null);
   const best4Names  = new Set(activePicks.slice(0, BEST_N).map(sp => sp.name));
+  const activeCount = p.activeCount ?? activePicks.length;
 
   return (
     <div style={{
@@ -267,6 +269,11 @@ function ParticipantCard({ p, rank }) {
           color: p.total < 0 ? '#7fff7f' : p.total > 0 ? '#ffaaaa' : '#fff',
         }}>
           {p.total !== null ? formatTotal(p.total) : '--'}
+          {activeCount > 0 && activeCount < BEST_N && (
+            <span style={{ fontSize: '0.7rem', fontWeight: 'normal', marginLeft: 4, opacity: 0.8 }}>
+              ({activeCount} active)
+            </span>
+          )}
         </span>
       </div>
 
@@ -276,41 +283,65 @@ function ParticipantCard({ p, rank }) {
           <tr style={{ background: '#f5f5f5' }}>
             <th style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 600, color: '#555', width: 24 }}>#</th>
             <th style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 600, color: '#555' }}>Golfer</th>
-            <th style={{ padding: '4px 8px', textAlign: 'center', fontWeight: 600, color: '#555', width: 60 }}>Score</th>
-            <th style={{ padding: '4px 8px', textAlign: 'center', fontWeight: 600, color: '#555', width: 44 }}>Pos</th>
+            <th style={{ padding: '4px 8px', textAlign: 'center', fontWeight: 600, color: '#555', width: 64 }}>Score</th>
           </tr>
         </thead>
         <tbody>
           {sortedPicks.filter(sp => sp.name).map((sp, i) => {
             const counting = best4Names.has(sp.name);
             return (
-              <tr key={sp.name + i} style={{ background: counting ? '#FFFBEA' : sp.eliminated ? '#f9f9f9' : '#fff', borderTop: '1px solid #eee' }}>
+              <tr key={sp.name + i} style={{
+                background: sp.eliminated ? '#f5f5f5' : counting ? '#FFFBEA' : '#fff',
+                borderTop: '1px solid #eee',
+                opacity: sp.eliminated ? 0.6 : 1,
+              }}>
                 <td style={{ padding: '5px 8px', color: '#aaa', fontSize: '0.75rem' }}>{i + 1}</td>
-                <td style={{ padding: '5px 8px', fontWeight: counting ? 'bold' : 'normal', color: sp.eliminated ? '#aaa' : '#222', textDecoration: sp.eliminated ? 'line-through' : 'none' }}>
+                <td style={{
+                  padding: '5px 8px',
+                  fontWeight: counting ? 'bold' : 'normal',
+                  color: sp.eliminated ? '#999' : '#222',
+                  textDecoration: sp.eliminated ? 'line-through' : 'none',
+                }}>
                   {sp.name}
                 </td>
-                <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 'bold' }}
-                  className={sp.eliminated ? 'score-mc' : scoreColorClass(sp.score)}>
-                  {sp.display || '--'}
-                </td>
-                <td style={{ padding: '5px 8px', textAlign: 'center', fontSize: '0.75rem', color: '#888' }}>
-                  {sp.eliminated ? '' : (sp.position || '')}
+                <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 'bold' }}>
+                  {sp.eliminated ? (
+                    // Eliminated: show CUT or WD badge, never a score
+                    <span style={{
+                      background: sp.status === 'WD' ? '#fee2e2' : '#f3f4f6',
+                      color: sp.status === 'WD' ? '#991b1b' : '#6b7280',
+                      borderRadius: 4, padding: '1px 6px', fontSize: '0.72rem', fontWeight: 'bold',
+                    }}>
+                      {sp.status === 'WD' ? 'WD' : 'CUT'}
+                    </span>
+                  ) : (
+                    <span className={scoreColorClass(sp.score)}>
+                      {sp.score !== null ? sp.display : '--'}
+                    </span>
+                  )}
                 </td>
               </tr>
             );
           })}
           {sortedPicks.filter(sp => !sp.name).length > 0 && (
             <tr style={{ borderTop: '1px solid #eee' }}>
-              <td colSpan={4} style={{ padding: '5px 8px', color: '#ccc', fontStyle: 'italic', fontSize: '0.78rem' }}>
-                {sortedPicks.filter(sp => !sp.name).length} pick{sortedPicks.filter(sp => !sp.name).length > 1 ? 's' : ''} not yet entered
+              <td colSpan={3} style={{ padding: '5px 8px', color: '#ccc', fontStyle: 'italic', fontSize: '0.78rem' }}>
+                {sortedPicks.filter(sp => !sp.name).length} pick{sortedPicks.filter(sp => !sp.name).length > 1 ? 's' : ''} not entered
               </td>
             </tr>
           )}
         </tbody>
       </table>
-      {p.best4Count > 0 && p.best4Count < BEST_N && (
-        <div style={{ padding: '4px 10px', fontSize: '0.7rem', color: '#e67', background: '#fff8f8', borderTop: '1px solid #eee' }}>
-          ⚠️ Only {p.best4Count} active score{p.best4Count !== 1 ? 's' : ''} — needs {BEST_N} for full total
+
+      {/* Footer — only shown when fewer than BEST_N active picks */}
+      {activeCount > 0 && activeCount < BEST_N && (
+        <div style={{ padding: '5px 10px', fontSize: '0.7rem', color: '#b45309', background: '#fffbeb', borderTop: '1px solid #fde68a' }}>
+          ⚠️ Only {activeCount} of {PICKS_PER_PARTICIPANT} picks still in the tournament — total is based on {activeCount} score{activeCount !== 1 ? 's' : ''} only
+        </div>
+      )}
+      {activeCount === 0 && p.total === null && sortedPicks.some(sp => sp.name) && (
+        <div style={{ padding: '5px 10px', fontSize: '0.7rem', color: '#991b1b', background: '#fff0f0', borderTop: '1px solid #fecaca' }}>
+          ❌ All picks eliminated — no score
         </div>
       )}
     </div>
@@ -360,7 +391,7 @@ function LeaderboardTab({ participants, golferData, loading, error, lastUpdated,
       ) : (
         <>
           <div style={{ fontSize: '0.78rem', color: '#666', marginBottom: 10 }}>
-            Best {BEST_N} of {PICKS_PER_PARTICIPANT} active picks count · 🟨 highlighted picks count toward total · strikethrough = MC/WD (excluded)
+            Best {BEST_N} of {PICKS_PER_PARTICIPANT} picks count · 🟨 highlighted = counting toward total · CUT/WD = eliminated, not counted
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
             {ranked.map(p => (
