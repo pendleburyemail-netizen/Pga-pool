@@ -11,7 +11,7 @@ import {
 
 const REFRESH_INTERVAL = 60_000;
 const MAX_PARTICIPANTS = 8;
-const STORAGE_KEY = 'pga-pool-v5';
+const STORAGE_KEY = 'pga-pool-v4';
 const DEFAULT_NAMES = ['Taffy', 'Gary', 'Ann', 'Kathy', 'Pablo', 'Greg'];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
