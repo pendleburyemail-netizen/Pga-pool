@@ -1,79 +1,86 @@
 // pages/api/picks.js
-// Stores pool picks in Vercel Blob as a JSON file.
-// Uses BLOB_STORE_ID (OIDC auth — current Vercel standard).
+// Stores picks using JSONBin.io — a free JSON storage API.
+// No complex setup, just needs a JSONBIN_API_KEY and JSONBIN_BIN_ID env var.
+//
+// SETUP (2 minutes):
+//   1. Go to https://jsonbin.io and click "Sign Up Free"
+//   2. After signing in, click "Create Bin"
+//   3. Paste this as the initial content: []
+//   4. Click "Create Bin" — copy the Bin ID from the URL or response
+//   5. Click your account icon → API Keys → copy your Master Key
+//   6. In Vercel: Settings → Environment Variables, add:
+//      JSONBIN_BIN_ID  = the bin ID (looks like 6849a1234abc...)
+//      JSONBIN_API_KEY = your master key (looks like $2a$10$...)
+//      POOL_PIN        = your chosen PIN
 
-import { put, list, del } from '@vercel/blob';
+const BASE_URL = 'https://api.jsonbin.io/v3/b';
 
-const PICKS_PATHNAME = 'pga-pool-picks.json';
+async function loadPicks() {
+  const res = await fetch(`${BASE_URL}/${process.env.JSONBIN_BIN_ID}/latest`, {
+    headers: {
+      'X-Master-Key': process.env.JSONBIN_API_KEY,
+      'X-Bin-Meta': 'false',
+    },
+  });
+  if (!res.ok) throw new Error(`JSONBin GET failed: ${res.status}`);
+  const data = await res.json();
+  // data is the raw content we stored
+  if (Array.isArray(data) && data.length > 0) return data;
+  if (Array.isArray(data?.participants)) return data.participants;
+  return null;
+}
+
+async function savePicks(participants) {
+  const res = await fetch(`${BASE_URL}/${process.env.JSONBIN_BIN_ID}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Master-Key': process.env.JSONBIN_API_KEY,
+    },
+    body: JSON.stringify(participants),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`JSONBin PUT failed: ${res.status} — ${text}`);
+  }
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  const hasBlobStoreId = !!process.env.BLOB_STORE_ID;
-  const hasBlobToken   = !!process.env.BLOB_READ_WRITE_TOKEN;
-
-  if (!hasBlobStoreId && !hasBlobToken) {
+  if (!process.env.JSONBIN_BIN_ID || !process.env.JSONBIN_API_KEY) {
     return res.status(503).json({
-      error: 'Blob not configured — BLOB_STORE_ID missing',
-      env: { hasBlobStoreId, hasBlobToken, hasPoolPin: !!process.env.POOL_PIN },
+      error: 'JSONBin not configured. Add JSONBIN_BIN_ID and JSONBIN_API_KEY to Vercel environment variables.',
+      setup: 'Visit https://jsonbin.io — sign up free, create a bin, copy the ID and your API key.',
     });
   }
 
-  // ── GET ─────────────────────────────────────────────────────────────────────
   if (req.method === 'GET') {
     try {
-      const { blobs } = await list({ prefix: PICKS_PATHNAME });
-      if (!blobs || blobs.length === 0) {
-        return res.status(200).json({ participants: null, isDefault: true });
-      }
-      // Fetch the blob content via its URL
-      const blob = blobs[0];
-      const url  = blob.downloadUrl || blob.url;
-      const r    = await fetch(url);
-      if (!r.ok) throw new Error(`Blob fetch failed: ${r.status}`);
-      const participants = await r.json();
-      return res.status(200).json({ participants, isDefault: false });
+      const participants = await loadPicks();
+      return res.status(200).json({
+        participants: participants || null,
+        isDefault: !participants,
+      });
     } catch (e) {
-      console.error('GET /api/picks error:', e);
       return res.status(500).json({ error: e.message });
     }
   }
 
-  // ── POST ────────────────────────────────────────────────────────────────────
   if (req.method === 'POST') {
     const { participants, pin } = req.body || {};
-
-    // PIN check
     const correctPin = String(process.env.POOL_PIN || '1234');
     if (String(pin) !== correctPin) {
       return res.status(403).json({ error: 'Incorrect PIN' });
     }
-
     if (!Array.isArray(participants) || participants.length === 0) {
       return res.status(400).json({ error: 'Invalid participants data' });
     }
-
     try {
-      // Delete old version first to avoid URL proliferation
-      try {
-        const { blobs } = await list({ prefix: PICKS_PATHNAME });
-        for (const b of blobs) await del(b.url);
-      } catch {}
-
-      // Write new version
-      const blob = await put(PICKS_PATHNAME, JSON.stringify(participants), {
-        access: 'public',
-        contentType: 'application/json',
-        addRandomSuffix: false,
-      });
-
-      return res.status(200).json({ ok: true, url: blob.url });
+      await savePicks(participants);
+      return res.status(200).json({ ok: true });
     } catch (e) {
-      console.error('POST /api/picks error:', e.message, e.stack);
-      return res.status(500).json({
-        error: e.message,
-        type: e.constructor?.name,
-      });
+      return res.status(500).json({ error: e.message });
     }
   }
 
