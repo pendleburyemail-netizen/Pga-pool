@@ -11,7 +11,7 @@ import {
 
 const REFRESH_INTERVAL = 60_000;
 const MAX_PARTICIPANTS = 8;
-const STORAGE_KEY = 'pga-pool-v4';
+const STORAGE_KEY = 'pga-pool-v5';
 const DEFAULT_NAMES = ['Taffy', 'Gary', 'Ann', 'Kathy', 'Pablo', 'Greg'];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -291,7 +291,7 @@ function ParticipantCard({ p, rank }) {
                 </td>
                 <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 'bold' }}
                   className={sp.eliminated ? 'score-mc' : scoreColorClass(sp.score)}>
-                  {sp.eliminated ? sp.status : sp.score !== null ? sp.display : '--'}
+                  {sp.display || '--'}
                 </td>
                 <td style={{ padding: '5px 8px', textAlign: 'center', fontSize: '0.75rem', color: '#888' }}>
                   {sp.eliminated ? '' : (sp.position || '')}
