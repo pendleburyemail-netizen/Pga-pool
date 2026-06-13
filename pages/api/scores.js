@@ -58,8 +58,12 @@ function parseStatus(comp) {
   const type = ((comp.status || {}).type || {});
   const name = (type.name || '').toUpperCase();
   const desc = (type.description || '').toUpperCase();
-  if (name === 'STATUS_CUT' || desc.includes('CUT')) return 'MC';
-  if (name === 'STATUS_WITHDRAWN' || desc.includes('WITHDRAW')) return 'WD';
+  const shortDetail = (comp.status?.shortDetail || '').toUpperCase();
+
+  if (name.includes('CUT') || desc.includes('CUT') || shortDetail.includes('CUT') ||
+      name === 'STATUS_MISSED_CUT') return 'MC';
+  if (name.includes('WITHDRAW') || desc.includes('WITHDRAW') || shortDetail.includes('WD') ||
+      name === 'STATUS_WITHDRAWN' || name === 'STATUS_DQ') return 'WD';
   return 'Active';
 }
 
@@ -109,15 +113,16 @@ function parseESPN(json) {
 
     const totalRaw = parseScore(comp.score);
     const status = parseStatus(comp);
-    const penalizedTotal = status === 'MC' || status === 'WD' ? 20 : totalRaw;
+    const isCutOrWD = status === 'MC' || status === 'WD';
 
     return {
       name,
       nameKey: normalizeName(name),
       r1: rounds[0], r2: rounds[1], r3: rounds[2], r4: rounds[3],
-      total: penalizedTotal,
-      displayTotal: status === 'MC' ? 'MC' : status === 'WD' ? 'WD' : formatScore(totalRaw),
+      total: isCutOrWD ? null : totalRaw,
+      displayTotal: status === 'MC' ? 'CUT' : status === 'WD' ? 'WD' : formatScore(totalRaw),
       status,
+      statusRaw: (comp.status?.type?.name || '') + '|' + (comp.status?.type?.description || ''),
       position: comp.status?.position?.displayText || null,
     };
   });
