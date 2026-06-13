@@ -11,7 +11,6 @@ import {
 
 const REFRESH_INTERVAL = 60_000;
 const MAX_PARTICIPANTS = 8;
-const STORAGE_KEY = 'pga-pool-v4';
 const DEFAULT_NAMES = ['Taffy', 'Gary', 'Ann', 'Kathy', 'Pablo', 'Greg'];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -21,14 +20,6 @@ function emptyParticipant(id, name = '') {
 }
 function defaultParticipants() {
   return DEFAULT_NAMES.map((name, i) => emptyParticipant(i + 1, name));
-}
-function loadState() {
-  if (typeof window === 'undefined') return null;
-  try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : null; }
-  catch { return null; }
-}
-function saveState(data) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
 }
 function formatTotal(total) {
   if (total === null || total === undefined) return '--';
@@ -45,6 +36,56 @@ function TournamentBadge({ isLive, isFinal, status }) {
   if (isLive)  return <span className="badge badge-live">🔴 Live</span>;
   if (isFinal) return <span className="badge badge-final">✅ Final</span>;
   return <span className="badge badge-pre">📅 {status || 'Upcoming'}</span>;
+}
+
+// ── PIN modal ─────────────────────────────────────────────────────────────────
+
+function PinModal({ onSubmit, onCancel, error }) {
+  const [pin, setPin] = useState('');
+  const inputRef = useRef(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999,
+    }}>
+      <div style={{
+        background: '#fff', borderRadius: 10, padding: 28, width: 300,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+      }}>
+        <div style={{ fontWeight: 'bold', fontSize: '1.1rem', marginBottom: 8, color: '#1B4F2A' }}>
+          🔒 Enter PIN to save picks
+        </div>
+        <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: 16 }}>
+          Picks are shared with everyone. Enter the pool PIN to make changes.
+        </div>
+        <input
+          ref={inputRef}
+          type="password"
+          inputMode="numeric"
+          maxLength={8}
+          className="form-input"
+          placeholder="PIN"
+          value={pin}
+          onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+          onKeyDown={e => { if (e.key === 'Enter') onSubmit(pin); }}
+          style={{ marginBottom: 8, fontSize: '1.2rem', letterSpacing: 4, textAlign: 'center' }}
+        />
+        {error && (
+          <div style={{ color: '#c00', fontSize: '0.82rem', marginBottom: 8 }}>{error}</div>
+        )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => onSubmit(pin)}>
+            Save Picks
+          </button>
+          <button className="btn" style={{ flex: 1, background: '#eee', color: '#333' }} onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Typeahead picker ──────────────────────────────────────────────────────────
@@ -69,9 +110,9 @@ function GolferPicker({ value, onChange, fieldNames, pickLabel }) {
   function handleKey(e) {
     if (!open || filtered.length === 0) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setHighlighted(h => Math.min(h + 1, filtered.length - 1)); }
-    else if (e.key === 'ArrowUp')   { e.preventDefault(); setHighlighted(h => Math.max(h - 1, 0)); }
-    else if (e.key === 'Enter')     { e.preventDefault(); if (filtered[highlighted]) select(filtered[highlighted]); }
-    else if (e.key === 'Escape')    { setOpen(false); }
+    else if (e.key === 'ArrowUp')  { e.preventDefault(); setHighlighted(h => Math.max(h - 1, 0)); }
+    else if (e.key === 'Enter')    { e.preventDefault(); if (filtered[highlighted]) select(filtered[highlighted]); }
+    else if (e.key === 'Escape')   { setOpen(false); }
   }
 
   function positionDropdown(el) {
@@ -154,7 +195,22 @@ function GolferPicker({ value, onChange, fieldNames, pickLabel }) {
 
 // ── Setup tab ─────────────────────────────────────────────────────────────────
 
-function SetupTab({ participants, onChange, fieldNames }) {
+function SetupTab({ participants, onChange, fieldNames, onSave, saveStatus }) {
+  const [shareMsg, setShareMsg] = useState('');
+
+  function handleShare() {
+    try {
+      const encoded = btoa(JSON.stringify(participants));
+      const url = `${window.location.origin}${window.location.pathname}?picks=${encoded}`;
+      navigator.clipboard.writeText(url).then(() => {
+        setShareMsg('✅ Link copied! Send it to others to share picks.');
+      }).catch(() => {
+        // Fallback — show the URL in a prompt
+        window.prompt('Copy this link and send to others:', url);
+      });
+      setTimeout(() => setShareMsg(''), 5000);
+    } catch {}
+  }
   function updateName(id, name) { onChange(participants.map(p => p.id === id ? { ...p, name } : p)); }
   function updatePick(id, idx, pick) {
     onChange(participants.map(p => {
@@ -170,6 +226,7 @@ function SetupTab({ participants, onChange, fieldNames }) {
     if (participants.length <= 1) return;
     onChange(participants.filter(p => p.id !== id));
   }
+
   const hasField = fieldNames.length > 0;
 
   return (
@@ -177,11 +234,27 @@ function SetupTab({ participants, onChange, fieldNames }) {
       <div className="card">
         <div className="card-header">⚙️ Pool Setup</div>
         <div className="card-body">
-          <div className="notice notice-info" style={{ marginBottom: 16 }}>
-            Each participant picks {PICKS_PER_PARTICIPANT} golfers. The best {BEST_N} scores count toward your total — never more than {BEST_N}. Players who miss the cut or withdraw are eliminated and not counted.
+          <div className="notice notice-info" style={{ marginBottom: 12 }}>
+            Each participant picks {PICKS_PER_PARTICIPANT} golfers. The best {BEST_N} scores count.
+            Players who miss the cut or withdraw are eliminated and not counted.
             {!hasField && ' ⏳ Loading field from ESPN…'}
             {hasField && ` Field: ${fieldNames.length} players.`}
           </div>
+
+          {/* Save + Share buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+            <button className="btn btn-primary" onClick={onSave} disabled={saveStatus === 'saving'}>
+              {saveStatus === 'saving' ? '💾 Saving…' : '💾 Save Picks for Everyone'}
+            </button>
+            <button className="btn" style={{ background: '#2E6B3E', color: '#F7E87C' }} onClick={handleShare}>
+              🔗 Share Picks Link
+            </button>
+            {saveStatus === 'saved'  && <span style={{ color: '#2E6B3E', fontSize: '0.85rem' }}>✅ Saved — all devices updated</span>}
+            {saveStatus === 'error'  && <span style={{ color: '#c00',    fontSize: '0.85rem' }}>❌ Save failed</span>}
+            {saveStatus === 'pinbad' && <span style={{ color: '#c00',    fontSize: '0.85rem' }}>❌ Incorrect PIN</span>}
+            {shareMsg && <span style={{ color: '#2E6B3E', fontSize: '0.85rem' }}>{shareMsg}</span>}
+          </div>
+
           <div className="setup-grid">
             {participants.map((p, pIdx) => (
               <div className="participant-card" key={p.id} style={{ overflow: 'visible' }}>
@@ -222,14 +295,11 @@ function SetupTab({ participants, onChange, fieldNames }) {
   );
 }
 
-// ── Leaderboard tab ───────────────────────────────────────────────────────────
-// Uses a card-per-participant layout instead of a wide table, avoiding header
-// overlap. Picks are displayed sorted by score (best first, MC/WD last).
+// ── Participant card ──────────────────────────────────────────────────────────
 
 function ParticipantCard({ p, rank }) {
   const medals = ['🥇', '🥈', '🥉'];
 
-  // Sort picks: active by score asc, then unscored (no data yet), then eliminated last
   const sortedPicks = [...p.scoredPicks].sort((a, b) => {
     if (!a.name && !b.name) return 0;
     if (!a.name) return 1;
@@ -243,7 +313,6 @@ function ParticipantCard({ p, rank }) {
     return a.score - b.score;
   });
 
-  // The best BEST_N active picks (already sorted above) are the counting ones
   const activePicks = sortedPicks.filter(sp => sp.name && !sp.eliminated && sp.score !== null);
   const best4Names  = new Set(activePicks.slice(0, BEST_N).map(sp => sp.name));
   const activeCount = p.activeCount ?? activePicks.length;
@@ -252,22 +321,15 @@ function ParticipantCard({ p, rank }) {
     <div style={{
       background: '#fff',
       border: rank === 1 ? '2px solid #B8860B' : rank === 2 ? '2px solid #aaa' : rank === 3 ? '2px solid #8B4513' : '1px solid #e0e0e0',
-      borderRadius: 8,
-      overflow: 'hidden',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+      borderRadius: 8, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
     }}>
-      {/* Card header */}
       <div style={{
         background: rank <= 3 ? ['#B8860B','#888','#8B4513'][rank-1] : '#2E6B3E',
-        color: '#fff', padding: '8px 14px',
-        display: 'flex', alignItems: 'center', gap: 10,
+        color: '#fff', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10,
       }}>
         <span style={{ fontSize: '1.3rem' }}>{medals[rank - 1] || rank}</span>
         <span style={{ fontWeight: 'bold', fontSize: '1rem', flex: 1 }}>{p.name}</span>
-        <span style={{
-          fontSize: '1.2rem', fontWeight: 'bold',
-          color: p.total < 0 ? '#7fff7f' : p.total > 0 ? '#ffaaaa' : '#fff',
-        }}>
+        <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: p.total < 0 ? '#7fff7f' : p.total > 0 ? '#ffaaaa' : '#fff' }}>
           {p.total !== null ? formatTotal(p.total) : '--'}
           {activeCount > 0 && activeCount < BEST_N && (
             <span style={{ fontSize: '0.7rem', fontWeight: 'normal', marginLeft: 4, opacity: 0.8 }}>
@@ -277,7 +339,6 @@ function ParticipantCard({ p, rank }) {
         </span>
       </div>
 
-      {/* Picks table */}
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
         <thead>
           <tr style={{ background: '#f5f5f5' }}>
@@ -292,21 +353,16 @@ function ParticipantCard({ p, rank }) {
             return (
               <tr key={sp.name + i} style={{
                 background: sp.eliminated ? '#f5f5f5' : counting ? '#FFFBEA' : '#fff',
-                borderTop: '1px solid #eee',
-                opacity: sp.eliminated ? 0.6 : 1,
+                borderTop: '1px solid #eee', opacity: sp.eliminated ? 0.6 : 1,
               }}>
                 <td style={{ padding: '5px 8px', color: '#aaa', fontSize: '0.75rem' }}>{i + 1}</td>
-                <td style={{
-                  padding: '5px 8px',
-                  fontWeight: counting ? 'bold' : 'normal',
+                <td style={{ padding: '5px 8px', fontWeight: counting ? 'bold' : 'normal',
                   color: sp.eliminated ? '#999' : '#222',
-                  textDecoration: sp.eliminated ? 'line-through' : 'none',
-                }}>
+                  textDecoration: sp.eliminated ? 'line-through' : 'none' }}>
                   {sp.name}
                 </td>
                 <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 'bold' }}>
                   {sp.eliminated ? (
-                    // Eliminated: show CUT or WD badge, never a score
                     <span style={{
                       background: sp.status === 'WD' ? '#fee2e2' : '#f3f4f6',
                       color: sp.status === 'WD' ? '#991b1b' : '#6b7280',
@@ -333,10 +389,9 @@ function ParticipantCard({ p, rank }) {
         </tbody>
       </table>
 
-      {/* Footer — only shown when fewer than BEST_N active picks */}
       {activeCount > 0 && activeCount < BEST_N && (
         <div style={{ padding: '5px 10px', fontSize: '0.7rem', color: '#b45309', background: '#fffbeb', borderTop: '1px solid #fde68a' }}>
-          ⚠️ Only {activeCount} of {PICKS_PER_PARTICIPANT} picks still in the tournament — total is based on {activeCount} score{activeCount !== 1 ? 's' : ''} only
+          ⚠️ Only {activeCount} of {PICKS_PER_PARTICIPANT} picks still in the tournament
         </div>
       )}
       {activeCount === 0 && p.total === null && sortedPicks.some(sp => sp.name) && (
@@ -348,7 +403,9 @@ function ParticipantCard({ p, rank }) {
   );
 }
 
-function LeaderboardTab({ participants, golferData, loading, error, lastUpdated, tournament }) {
+// ── Leaderboard tab ───────────────────────────────────────────────────────────
+
+function LeaderboardTab({ participants, golferData, loading, error, lastUpdated, tournament, cutHasHappened }) {
   const golferMap = buildGolferMap(golferData);
   const scored = participants
     .filter(p => p.name && p.picks.some(Boolean))
@@ -357,7 +414,6 @@ function LeaderboardTab({ participants, golferData, loading, error, lastUpdated,
 
   return (
     <div>
-      {/* Tournament info bar */}
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-body" style={{ padding: '12px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -387,16 +443,14 @@ function LeaderboardTab({ participants, golferData, loading, error, lastUpdated,
         </div>
       )}
       {ranked.length === 0 ? (
-        <div className="notice notice-info">No participants set up yet. Go to ⚙️ Setup.</div>
+        <div className="notice notice-info">No participants set up yet. Go to ⚙️ Setup to add picks.</div>
       ) : (
         <>
           <div style={{ fontSize: '0.78rem', color: '#666', marginBottom: 10 }}>
-            Best {BEST_N} of {PICKS_PER_PARTICIPANT} picks count · 🟨 highlighted = counting toward total · CUT/WD = eliminated, not counted
+            Best {BEST_N} of {PICKS_PER_PARTICIPANT} picks count · 🟨 highlighted = counting · CUT/WD = eliminated
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-            {ranked.map(p => (
-              <ParticipantCard key={p.id} p={p} rank={p.rank} />
-            ))}
+            {ranked.map(p => <ParticipantCard key={p.id} p={p} rank={p.rank} />)}
           </div>
         </>
       )}
@@ -458,9 +512,8 @@ function ScoresTab({ golferData, loading, error, tournament }) {
                         {r === null ? '—' : formatScore(r)}
                       </td>
                     ))}
-                    <td className={`total-cell ${g.status === 'MC' || g.status === 'WD' ? 'score-mc' : g.total < 0 ? 'score-under' : g.total > 0 ? 'score-over' : 'score-even'}`}>
-                      {/* Show CUT or WD instead of numeric score for eliminated players */}
-                      {g.status === 'MC' ? 'CUT' : g.status === 'WD' ? 'WD' : (g.displayTotal || '--')}
+                    <td className={`total-cell ${g.total < 0 ? 'score-under' : g.total > 0 ? 'score-over' : 'score-even'}`}>
+                      {g.displayTotal || '--'}
                     </td>
                     <td>
                       <span className={`badge ${g.status === 'Active' ? 'badge-live' : 'badge-final'}`}>{g.status}</span>
@@ -483,21 +536,101 @@ export default function Home() {
   const [participants, setParticipants] = useState(defaultParticipants());
   const [golferData, setGolferData]     = useState([]);
   const [tournament, setTournament]     = useState(null);
+  const [currentRound, setCurrentRound]       = useState(0);
+  const [cutHasHappened, setCutHasHappened]   = useState(false);
   const [loading, setLoading]           = useState(false);
+  const [picksLoading, setPicksLoading] = useState(true);
   const [error, setError]               = useState(null);
   const [lastUpdated, setLastUpdated]   = useState(null);
-  const timerRef = useRef(null);
+  const [saveStatus, setSaveStatus]     = useState('idle'); // idle|saving|saved|error|pinbad
+  const [showPin, setShowPin]           = useState(false);
+  const [pinError, setPinError]         = useState('');
+  const timerRef  = useRef(null);
+  const pendingParticipants = useRef(null);
 
   const fieldNames = golferData.map(g => g.name).filter(Boolean).sort((a, b) => a.localeCompare(b));
 
+  // ── Picks: load from URL param → server → localStorage cache ───────────────
   useEffect(() => {
-    const saved = loadState();
-    if (saved?.participants?.length) setParticipants(saved.participants);
-    else if (Array.isArray(saved) && saved.length) setParticipants(saved);
+    setPicksLoading(true);
+
+    // 1. Check URL for shared picks (e.g. ?picks=base64...)
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const encoded = params.get('picks');
+      if (encoded) {
+        const decoded = JSON.parse(atob(encoded));
+        if (decoded?.length) {
+          setParticipants(decoded);
+          try { localStorage.setItem('pga-pool-cache', JSON.stringify(decoded)); } catch {}
+          setPicksLoading(false);
+          // Clean URL without reloading
+          window.history.replaceState({}, '', window.location.pathname);
+          return;
+        }
+      }
+    } catch {}
+
+    // 2. Try server (Blob)
+    fetch('/api/picks')
+      .then(r => r.json())
+      .then(data => {
+        if (data.participants?.length) {
+          setParticipants(data.participants);
+          try { localStorage.setItem('pga-pool-cache', JSON.stringify(data.participants)); } catch {}
+        } else {
+          // 3. Fall back to localStorage cache
+          try {
+            const cached = localStorage.getItem('pga-pool-cache');
+            if (cached) { const p = JSON.parse(cached); if (p?.length) setParticipants(p); }
+          } catch {}
+        }
+      })
+      .catch(() => {
+        // 3. Server error — fall back to localStorage cache
+        try {
+          const cached = localStorage.getItem('pga-pool-cache');
+          if (cached) { const p = JSON.parse(cached); if (p?.length) setParticipants(p); }
+        } catch {}
+      })
+      .finally(() => setPicksLoading(false));
   }, []);
 
-  useEffect(() => { saveState({ participants }); }, [participants]);
+  // ── Save picks flow ────────────────────────────────────────────────────────
+  function handleSaveRequest() {
+    pendingParticipants.current = participants;
+    setPinError('');
+    setShowPin(true);
+  }
 
+  async function handlePinSubmit(pin) {
+    setShowPin(false);
+    setSaveStatus('saving');
+    try {
+      const res = await fetch('/api/picks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ participants: pendingParticipants.current, pin }),
+      });
+      const data = await res.json();
+      if (res.status === 403) {
+        setSaveStatus('pinbad');
+        setPinError('Incorrect PIN — try again');
+        setTimeout(() => setShowPin(true), 400);
+      } else if (!res.ok || data.error) {
+        setSaveStatus('error');
+      } else {
+        setSaveStatus('saved');
+        // Also cache locally so this device always has the latest
+        try { localStorage.setItem('pga-pool-cache', JSON.stringify(pendingParticipants.current)); } catch {}
+        setTimeout(() => setSaveStatus('idle'), 4000);
+      }
+    } catch {
+      setSaveStatus('error');
+    }
+  }
+
+  // ── Fetch live scores ──────────────────────────────────────────────────────
   const fetchScores = useCallback(async () => {
     setLoading(true); setError(null);
     try {
@@ -507,6 +640,8 @@ export default function Home() {
       if (data.error) throw new Error(data.error);
       setGolferData(data.golfers || []);
       setTournament(data.tournament || null);
+      setCurrentRound(data.currentRound || 0);
+      setCutHasHappened(data.cutHasHappened || false);
       setLastUpdated(data.lastUpdated);
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
@@ -529,6 +664,14 @@ export default function Home() {
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛳</text></svg>" />
       </Head>
 
+      {showPin && (
+        <PinModal
+          onSubmit={handlePinSubmit}
+          onCancel={() => { setShowPin(false); setSaveStatus('idle'); }}
+          error={pinError}
+        />
+      )}
+
       <header className="header">
         <div className="header-inner">
           <div>
@@ -546,32 +689,43 @@ export default function Home() {
       </header>
 
       <div className="app">
-        <nav className="tabs">
-          {[
-            { id: 'leaderboard', label: '🏆 Leaderboard' },
-            { id: 'setup',       label: '⚙️ Setup Picks' },
-            { id: 'scores',      label: '📊 Full Scores' },
-          ].map(t => (
-            <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
-              {t.label}
-            </button>
-          ))}
-          <button className="btn btn-sm btn-primary"
-            style={{ marginLeft: 'auto', alignSelf: 'center' }}
-            onClick={fetchScores} disabled={loading}>
-            {loading ? '🔄' : '↻'} Refresh
-          </button>
-        </nav>
+        {picksLoading && (
+          <div style={{ textAlign: 'center', padding: 32, color: '#666', fontSize: '0.9rem' }}>
+            ⏳ Loading picks…
+          </div>
+        )}
 
-        {tab === 'leaderboard' && (
-          <LeaderboardTab participants={participants} golferData={golferData} loading={loading}
-            error={error} lastUpdated={lastUpdated} tournament={tournament} />
-        )}
-        {tab === 'setup' && (
-          <SetupTab participants={participants} onChange={setParticipants} fieldNames={fieldNames} />
-        )}
-        {tab === 'scores' && (
-          <ScoresTab golferData={golferData} loading={loading} error={error} tournament={tournament} />
+        {!picksLoading && (
+          <>
+            <nav className="tabs">
+              {[
+                { id: 'leaderboard', label: '🏆 Leaderboard' },
+                { id: 'setup',       label: '⚙️ Setup Picks' },
+                { id: 'scores',      label: '📊 Full Scores' },
+              ].map(t => (
+                <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
+                  {t.label}
+                </button>
+              ))}
+              <button className="btn btn-sm btn-primary"
+                style={{ marginLeft: 'auto', alignSelf: 'center' }}
+                onClick={fetchScores} disabled={loading}>
+                {loading ? '🔄' : '↻'} Refresh
+              </button>
+            </nav>
+
+            {tab === 'leaderboard' && (
+              <LeaderboardTab participants={participants} golferData={golferData} loading={loading}
+                error={error} lastUpdated={lastUpdated} tournament={tournament} cutHasHappened={cutHasHappened} />
+            )}
+            {tab === 'setup' && (
+              <SetupTab participants={participants} onChange={setParticipants}
+                fieldNames={fieldNames} onSave={handleSaveRequest} saveStatus={saveStatus} />
+            )}
+            {tab === 'scores' && (
+              <ScoresTab golferData={golferData} loading={loading} error={error} tournament={tournament} />
+            )}
+          </>
         )}
       </div>
     </>
