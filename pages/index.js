@@ -579,19 +579,33 @@ export default function Home() {
           setParticipants(data.participants);
           try { localStorage.setItem('pga-pool-cache', JSON.stringify(data.participants)); } catch {}
         } else {
-          // 3. Fall back to localStorage cache
-          try {
-            const cached = localStorage.getItem('pga-pool-cache');
-            if (cached) { const p = JSON.parse(cached); if (p?.length) setParticipants(p); }
-          } catch {}
+          // 3. Fall back to localStorage — check all known keys in order
+          const keys = ['pga-pool-cache', 'pga-pool-v4', 'pga-pool-v3', 'pga-pool-v2'];
+          for (const key of keys) {
+            try {
+              const raw = localStorage.getItem(key);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                const p = parsed?.participants || (Array.isArray(parsed) ? parsed : null);
+                if (p?.length) { setParticipants(p); break; }
+              }
+            } catch {}
+          }
         }
       })
       .catch(() => {
-        // 3. Server error — fall back to localStorage cache
-        try {
-          const cached = localStorage.getItem('pga-pool-cache');
-          if (cached) { const p = JSON.parse(cached); if (p?.length) setParticipants(p); }
-        } catch {}
+        // Server error — try all known localStorage keys
+        const keys = ['pga-pool-cache', 'pga-pool-v4', 'pga-pool-v3', 'pga-pool-v2'];
+        for (const key of keys) {
+          try {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              const p = parsed?.participants || (Array.isArray(parsed) ? parsed : null);
+              if (p?.length) { setParticipants(p); break; }
+            }
+          } catch {}
+        }
       })
       .finally(() => setPicksLoading(false));
   }, []);
