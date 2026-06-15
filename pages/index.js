@@ -446,8 +446,19 @@ function LeaderboardTab({ participants, golferData, loading, error, lastUpdated,
         <div className="notice notice-info">No participants set up yet. Go to ⚙️ Setup to add picks.</div>
       ) : (
         <>
-          <div style={{ fontSize: '0.78rem', color: '#666', marginBottom: 10 }}>
-            Best {BEST_N} of {PICKS_PER_PARTICIPANT} picks count · 🟨 highlighted = counting · CUT/WD = eliminated
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+            <div style={{ fontSize: '0.78rem', color: '#666' }}>
+              Best {BEST_N} of {PICKS_PER_PARTICIPANT} picks count · 🟨 highlighted = counting · CUT/WD = eliminated
+            </div>
+            <a href="/api/results" target="_blank" rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px', background: '#1B4F2A', color: '#F7E87C',
+                borderRadius: 4, fontSize: '0.82rem', fontWeight: 'bold',
+                textDecoration: 'none', whiteSpace: 'nowrap',
+              }}>
+              ⬇ Save Results Page
+            </a>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
             {ranked.map(p => <ParticipantCard key={p.id} p={p} rank={p.rank} />)}
