@@ -565,7 +565,7 @@ export default function Home() {
   useEffect(() => {
     setPicksLoading(true);
 
-    // 1. Check URL for shared picks (e.g. ?picks=base64...)
+    // 1. Check URL for shared picks
     try {
       const params = new URLSearchParams(window.location.search);
       const encoded = params.get('picks');
@@ -575,22 +575,30 @@ export default function Home() {
           setParticipants(decoded);
           try { localStorage.setItem('pga-pool-cache', JSON.stringify(decoded)); } catch {}
           setPicksLoading(false);
-          // Clean URL without reloading
           window.history.replaceState({}, '', window.location.pathname);
           return;
         }
       }
     } catch {}
 
-    // 2. Try server (Blob)
+    // 2. Try server (Gist) — check if tournament has changed
     fetch('/api/picks')
       .then(r => r.json())
       .then(data => {
-        if (data.participants?.length) {
-          setParticipants(data.participants);
-          try { localStorage.setItem('pga-pool-cache', JSON.stringify(data.participants)); } catch {}
+        const savedTournament = data.savedTournament;
+        const participants    = data.participants;
+
+        // We'll compare against live tournament name once scores load
+        // Store savedTournament so the scores useEffect can compare
+        if (savedTournament) {
+          window._savedTournament = savedTournament;
+        }
+
+        if (participants?.length) {
+          setParticipants(participants);
+          try { localStorage.setItem('pga-pool-cache', JSON.stringify(participants)); } catch {}
         } else {
-          // 3. Fall back to localStorage — check all known keys in order
+          // Fall back to localStorage cache
           const keys = ['pga-pool-cache', 'pga-pool-v4', 'pga-pool-v3', 'pga-pool-v2'];
           for (const key of keys) {
             try {
@@ -605,7 +613,6 @@ export default function Home() {
         }
       })
       .catch(() => {
-        // Server error — try all known localStorage keys
         const keys = ['pga-pool-cache', 'pga-pool-v4', 'pga-pool-v3', 'pga-pool-v2'];
         for (const key of keys) {
           try {
@@ -635,7 +642,11 @@ export default function Home() {
       const res = await fetch('/api/picks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ participants: pendingParticipants.current, pin }),
+        body: JSON.stringify({
+          participants: pendingParticipants.current,
+          pin,
+          tournament: tournament?.name || '',
+        }),
       });
       const data = await res.json();
       if (res.status === 403) {
@@ -660,6 +671,8 @@ export default function Home() {
   }
 
   // ── Fetch live scores ──────────────────────────────────────────────────────
+  const [newTournamentBanner, setNewTournamentBanner] = useState('');
+
   const fetchScores = useCallback(async () => {
     setLoading(true); setError(null);
     try {
@@ -668,10 +681,25 @@ export default function Home() {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setGolferData(data.golfers || []);
-      setTournament(data.tournament || null);
       setCurrentRound(data.currentRound || 0);
       setCutHasHappened(data.cutHasHappened || false);
       setLastUpdated(data.lastUpdated);
+
+      const liveName = data.tournament?.name || '';
+      setTournament(data.tournament || null);
+
+      // Detect tournament change — compare live name against what was saved in Gist
+      const savedName = window._savedTournament || '';
+      if (savedName && liveName && savedName !== liveName) {
+        // New tournament detected — clear picks (keep participant names, wipe golfer picks)
+        setParticipants(prev => prev.map(p => ({
+          ...p,
+          picks: Array(PICKS_PER_PARTICIPANT).fill(''),
+        })));
+        try { localStorage.removeItem('pga-pool-cache'); } catch {}
+        window._savedTournament = liveName;
+        setNewTournamentBanner(liveName);
+      }
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
   }, []);
@@ -726,6 +754,27 @@ export default function Home() {
 
         {!picksLoading && (
           <>
+            {newTournamentBanner && (
+              <div className="notice" style={{
+                background: '#1B4F2A', color: '#F7E87C',
+                border: 'none', borderRadius: 8, padding: '14px 20px',
+                marginBottom: 16, display: 'flex', alignItems: 'center',
+                justifyContent: 'space-between', gap: 12,
+              }}>
+                <span>
+                  <strong>⛳ New tournament: {newTournamentBanner}</strong>
+                  <br />
+                  <span style={{ fontSize: '0.85rem', opacity: 0.85 }}>
+                    Golfer picks have been cleared — go to ⚙️ Setup Picks to enter new picks, then save.
+                  </span>
+                </span>
+                <button onClick={() => setNewTournamentBanner('')} style={{
+                  background: 'none', border: '1px solid #F7E87C', color: '#F7E87C',
+                  borderRadius: 4, padding: '4px 10px', cursor: 'pointer', whiteSpace: 'nowrap',
+                  fontSize: '0.8rem',
+                }}>Dismiss</button>
+              </div>
+            )}
             <nav className="tabs">
               {[
                 { id: 'leaderboard', label: '🏆 Leaderboard' },
