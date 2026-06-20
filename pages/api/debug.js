@@ -1,6 +1,4 @@
-// pages/api/debug.js
-// Visit /api/debug to see raw ESPN data structure
-// DELETE THIS FILE after debugging is done
+// pages/api/debug.js — temporary diagnostic endpoint
 
 export default async function handler(req, res) {
   try {
@@ -14,19 +12,18 @@ export default async function handler(req, res) {
     const comp = (ev.competitions || [])[0] || {};
     const competitors = comp.competitors || [];
 
-    // Sample first 5 and last 5 competitors
-    const sample = [
-      ...competitors.slice(0, 5),
-      ...competitors.slice(-5),
-    ];
+    const maxLinescores = competitors.length > 0
+      ? Math.max(...competitors.map(c => (c.linescores || []).length))
+      : 0;
+
+    const sample = [...competitors.slice(0, 5), ...competitors.slice(-5)];
 
     const out = {
       eventName: ev.name,
       eventStatus: ev.status?.type?.name,
       eventStatusDesc: ev.status?.type?.description,
       totalCompetitors: competitors.length,
-      currentRoundDetected: Math.max(...competitors.map(c => (c.linescores || []).length), 0),
-      // Look for cut line in various places ESPN might put it
+      currentRoundDetected: maxLinescores,
       cutLine: comp.situation?.cutLine
         || comp.cutLine
         || ev.competitions?.[0]?.situation?.cutLine
@@ -34,18 +31,25 @@ export default async function handler(req, res) {
         || null,
       compKeys: Object.keys(comp).join(', '),
       situationKeys: comp.situation ? Object.keys(comp.situation).join(', ') : 'none',
-      sampleCompetitors: sample.map(c => ({
-        name: c.athlete?.displayName,
-        score: c.score,
-        linescoreCount: (c.linescores || []).length,
-        linescores: (c.linescores || []).map(ls => ls.displayValue),
-        r1: (c.linescores || [])[0]?.displayValue,
-        r2: (c.linescores || [])[1]?.displayValue,
-        r3: (c.linescores || [])[2]?.displayValue,
-        patternA: maxLinescores >= 3 && (c.linescores || []).length <= 2,
-        patternB: (c.linescores || []).length >= 3 && (c.linescores || [])[0]?.displayValue !== undefined && (c.linescores || [])[1]?.displayValue !== undefined && ((c.linescores || [])[2]?.displayValue === '-' || (c.linescores || [])[2]?.displayValue === undefined || (c.linescores || [])[2]?.displayValue === null),
-        statusTypeName: c.status?.type?.name,
-      })),
+      sampleCompetitors: sample.map(c => {
+        const ls = c.linescores || [];
+        const r1 = ls[0]?.displayValue ?? null;
+        const r2 = ls[1]?.displayValue ?? null;
+        const r3 = ls[2]?.displayValue ?? null;
+        const patternA = maxLinescores >= 3 && ls.length <= 2 && r1 !== null;
+        const patternB = ls.length >= 3 && r1 !== null && r2 !== null && (r3 === '-' || r3 === null);
+        return {
+          name: c.athlete?.displayName,
+          score: c.score,
+          linescoreCount: ls.length,
+          linescores: ls.map(l => l.displayValue),
+          patternA,
+          patternB,
+          wouldBeMC: patternA || patternB,
+          statusTypeName: c.status?.type?.name,
+          statusDesc: c.status?.type?.description,
+        };
+      }),
     };
 
     res.setHeader('Content-Type', 'application/json');
