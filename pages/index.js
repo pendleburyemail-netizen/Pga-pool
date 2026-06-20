@@ -44,44 +44,20 @@ function PinModal({ onSubmit, onCancel, error }) {
   const [pin, setPin] = useState('');
   const inputRef = useRef(null);
   useEffect(() => { inputRef.current?.focus(); }, []);
-
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999,
-    }}>
-      <div style={{
-        background: '#fff', borderRadius: 10, padding: 28, width: 300,
-        boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
-      }}>
-        <div style={{ fontWeight: 'bold', fontSize: '1.1rem', marginBottom: 8, color: '#1B4F2A' }}>
-          🔒 Enter PIN to save picks
-        </div>
-        <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: 16 }}>
-          Picks are shared with everyone. Enter the pool PIN to make changes.
-        </div>
-        <input
-          ref={inputRef}
-          type="password"
-          inputMode="numeric"
-          maxLength={8}
-          className="form-input"
-          placeholder="PIN"
-          value={pin}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999 }}>
+      <div style={{ background: '#fff', borderRadius: 10, padding: 28, width: 300, boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
+        <div style={{ fontWeight: 'bold', fontSize: '1.1rem', marginBottom: 8, color: '#1B4F2A' }}>🔒 Enter PIN to save</div>
+        <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: 16 }}>Enter the pool PIN to save changes for all devices.</div>
+        <input ref={inputRef} type="password" inputMode="numeric" maxLength={8} className="form-input"
+          placeholder="PIN" value={pin}
           onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
           onKeyDown={e => { if (e.key === 'Enter') onSubmit(pin); }}
-          style={{ marginBottom: 8, fontSize: '1.2rem', letterSpacing: 4, textAlign: 'center' }}
-        />
-        {error && (
-          <div style={{ color: '#c00', fontSize: '0.82rem', marginBottom: 8 }}>{error}</div>
-        )}
+          style={{ marginBottom: 8, fontSize: '1.2rem', letterSpacing: 4, textAlign: 'center' }} />
+        {error && <div style={{ color: '#c00', fontSize: '0.82rem', marginBottom: 8 }}>{error}</div>}
         <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-          <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => onSubmit(pin)}>
-            Save Picks
-          </button>
-          <button className="btn" style={{ flex: 1, background: '#eee', color: '#333' }} onClick={onCancel}>
-            Cancel
-          </button>
+          <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => onSubmit(pin)}>Save</button>
+          <button className="btn" style={{ flex: 1, background: '#eee', color: '#333' }} onClick={onCancel}>Cancel</button>
         </div>
       </div>
     </div>
@@ -142,17 +118,13 @@ function GolferPicker({ value, onChange, fieldNames, pickLabel }) {
     <div className="form-group" ref={wrapRef} style={{ position: 'relative' }}>
       <label className="form-label">{pickLabel}</label>
       <div style={{ position: 'relative' }}>
-        <input
-          ref={inputRef}
-          className="form-input"
+        <input ref={inputRef} className="form-input"
           style={{ paddingRight: 28, borderColor: isConfirmed ? '#2E6B3E' : undefined, background: isConfirmed ? '#f0fff4' : undefined }}
-          placeholder="Type name to search…"
-          value={query}
+          placeholder="Type name to search…" value={query}
           autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
           onChange={e => { setQuery(e.target.value); setHighlighted(0); setOpen(true); if (e.target.value === '') onChange(''); }}
           onFocus={() => { if (query) setOpen(true); }}
-          onKeyDown={handleKey}
-        />
+          onKeyDown={handleKey} />
         {query && (
           <button onClick={clear} tabIndex={-1} title="Clear" style={{
             position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
@@ -170,24 +142,15 @@ function GolferPicker({ value, onChange, fieldNames, pickLabel }) {
             <li key={name}
               onMouseDown={e => { e.preventDefault(); select(name); }}
               onMouseEnter={() => setHighlighted(i)}
-              style={{
-                padding: '10px 14px', cursor: 'pointer',
-                background: i === highlighted ? '#D6ECD2' : '#fff',
-                color: '#222', fontSize: '0.9rem',
-                borderBottom: i < filtered.length - 1 ? '1px solid #eee' : 'none',
-                userSelect: 'none',
-              }}
+              style={{ padding: '10px 14px', cursor: 'pointer', background: i === highlighted ? '#D6ECD2' : '#fff', color: '#222', fontSize: '0.9rem', borderBottom: i < filtered.length - 1 ? '1px solid #eee' : 'none', userSelect: 'none' }}
             >{name}</li>
           ))}
         </ul>
       )}
       {open && query.trim().length > 1 && filtered.length === 0 && (
-        <div style={{
-          position: 'absolute', zIndex: 99999, left: 0, right: 0, top: '100%',
-          background: '#fff', border: '1px solid #ccc', borderRadius: 4,
-          padding: '10px 12px', fontSize: '0.85rem', color: '#999',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-        }}>No players match "{query}"</div>
+        <div style={{ position: 'absolute', zIndex: 99999, left: 0, right: 0, top: '100%', background: '#fff', border: '1px solid #ccc', borderRadius: 4, padding: '10px 12px', fontSize: '0.85rem', color: '#999', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+          No players match "{query}"
+        </div>
       )}
     </div>
   );
@@ -195,7 +158,7 @@ function GolferPicker({ value, onChange, fieldNames, pickLabel }) {
 
 // ── Setup tab ─────────────────────────────────────────────────────────────────
 
-function SetupTab({ participants, onChange, fieldNames, onSave, saveStatus }) {
+function SetupTab({ participants, onChange, fieldNames, onSave, saveStatus, cutHasHappened, replacements, onReplacementsChange }) {
   const [shareMsg, setShareMsg] = useState('');
 
   function handleShare() {
@@ -203,14 +166,12 @@ function SetupTab({ participants, onChange, fieldNames, onSave, saveStatus }) {
       const encoded = btoa(JSON.stringify(participants));
       const url = `${window.location.origin}${window.location.pathname}?picks=${encoded}`;
       navigator.clipboard.writeText(url).then(() => {
-        setShareMsg('✅ Link copied! Send it to others to share picks.');
-      }).catch(() => {
-        // Fallback — show the URL in a prompt
-        window.prompt('Copy this link and send to others:', url);
-      });
+        setShareMsg('✅ Link copied!');
+      }).catch(() => { window.prompt('Copy this link:', url); });
       setTimeout(() => setShareMsg(''), 5000);
     } catch {}
   }
+
   function updateName(id, name) { onChange(participants.map(p => p.id === id ? { ...p, name } : p)); }
   function updatePick(id, idx, pick) {
     onChange(participants.map(p => {
@@ -227,6 +188,16 @@ function SetupTab({ participants, onChange, fieldNames, onSave, saveStatus }) {
     onChange(participants.filter(p => p.id !== id));
   }
 
+  function updateReplacement(participantId, field, value) {
+    const current = replacements[participantId] || { out: '', in: '' };
+    onReplacementsChange({ ...replacements, [participantId]: { ...current, [field]: value } });
+  }
+  function clearReplacement(participantId) {
+    const r = { ...replacements };
+    delete r[participantId];
+    onReplacementsChange(r);
+  }
+
   const hasField = fieldNames.length > 0;
 
   return (
@@ -236,12 +207,10 @@ function SetupTab({ participants, onChange, fieldNames, onSave, saveStatus }) {
         <div className="card-body">
           <div className="notice notice-info" style={{ marginBottom: 12 }}>
             Each participant picks {PICKS_PER_PARTICIPANT} golfers. The best {BEST_N} scores count.
-            Players who miss the cut or withdraw are eliminated and not counted.
+            Players who miss the cut or withdraw are eliminated.
             {!hasField && ' ⏳ Loading field from ESPN…'}
             {hasField && ` Field: ${fieldNames.length} players.`}
           </div>
-
-          {/* Save + Share buttons */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
             <button className="btn btn-primary" onClick={onSave} disabled={saveStatus === 'saving'}>
               {saveStatus === 'saving' ? '💾 Saving…' : '💾 Save Picks for Everyone'}
@@ -250,8 +219,8 @@ function SetupTab({ participants, onChange, fieldNames, onSave, saveStatus }) {
               🔗 Share Picks Link
             </button>
             {saveStatus === 'saved'  && <span style={{ color: '#2E6B3E', fontSize: '0.85rem' }}>✅ Saved — all devices updated</span>}
-            {saveStatus === 'error'  && <span style={{ color: '#c00',    fontSize: '0.85rem' }}>❌ Save failed</span>}
-            {saveStatus === 'pinbad' && <span style={{ color: '#c00',    fontSize: '0.85rem' }}>❌ Incorrect PIN</span>}
+            {saveStatus === 'error'  && <span style={{ color: '#c00', fontSize: '0.85rem' }}>❌ Save failed</span>}
+            {saveStatus === 'pinbad' && <span style={{ color: '#c00', fontSize: '0.85rem' }}>❌ Incorrect PIN</span>}
             {shareMsg && <span style={{ color: '#2E6B3E', fontSize: '0.85rem' }}>{shareMsg}</span>}
           </div>
 
@@ -261,8 +230,7 @@ function SetupTab({ participants, onChange, fieldNames, onSave, saveStatus }) {
                 <div className="participant-card-header">
                   {p.name || `Participant ${pIdx + 1}`}
                   {participants.length > 1 && (
-                    <button className="btn btn-sm"
-                      style={{ float: 'right', background: 'rgba(255,255,255,0.15)', color: '#fff', padding: '1px 7px' }}
+                    <button className="btn btn-sm" style={{ float: 'right', background: 'rgba(255,255,255,0.15)', color: '#fff', padding: '1px 7px' }}
                       onClick={() => removeParticipant(p.id)}>✕</button>
                   )}
                 </div>
@@ -275,22 +243,72 @@ function SetupTab({ participants, onChange, fieldNames, onSave, saveStatus }) {
                   {p.picks.map((pick, idx) => (
                     <GolferPicker key={idx} value={pick}
                       onChange={val => updatePick(p.id, idx, val)}
-                      fieldNames={fieldNames}
-                      pickLabel={`Pick ${idx + 1}`} />
+                      fieldNames={fieldNames} pickLabel={`Pick ${idx + 1}`} />
                   ))}
                 </div>
               </div>
             ))}
             {participants.length < MAX_PARTICIPANTS && (
-              <div onClick={addParticipant} style={{
-                border: '2px dashed #ccc', borderRadius: 8,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                minHeight: 120, cursor: 'pointer', color: '#aaa', fontSize: '2rem', userSelect: 'none',
-              }}>+</div>
+              <div onClick={addParticipant} style={{ border: '2px dashed #ccc', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, cursor: 'pointer', color: '#aaa', fontSize: '2rem', userSelect: 'none' }}>+</div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Mid-tournament swap section — only shown after cut */}
+      {cutHasHappened && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="card-header">♻️ Mid-Tournament Swap</div>
+          <div className="card-body">
+            <div className="notice notice-info" style={{ marginBottom: 16 }}>
+              After the cut, each participant may swap one eliminated or underperforming player for an active replacement.
+              The replacement's score counts from R3 onwards only (they start at even par).
+              This is optional — leave blank to keep the original team.
+            </div>
+            <div className="setup-grid">
+              {participants.filter(p => p.name).map(p => {
+                const r = replacements[p.id] || { out: '', in: '' };
+                const hasSwap = r.out && r.in;
+                return (
+                  <div key={p.id} style={{
+                    border: hasSwap ? '2px solid #2E6B3E' : '1px solid #e0e0e0',
+                    borderRadius: 8, overflow: 'visible',
+                    background: hasSwap ? '#f0fff4' : '#fff',
+                  }}>
+                    <div style={{ background: hasSwap ? '#2E6B3E' : '#595959', color: '#fff', padding: '8px 12px', fontWeight: 'bold', fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>{p.name}</span>
+                      {hasSwap && <span style={{ fontSize: '0.75rem', color: '#a8d5b0' }}>Swap active ✓</span>}
+                    </div>
+                    <div style={{ padding: 10 }}>
+                      <div className="form-group" style={{ position: 'relative' }}>
+                        <label className="form-label">Remove this player</label>
+                        <select className="form-select" value={r.out}
+                          onChange={e => updateReplacement(p.id, 'out', e.target.value)}>
+                          <option value="">— select player to remove —</option>
+                          {p.picks.filter(Boolean).map(pick => (
+                            <option key={pick} value={pick}>{pick}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <GolferPicker
+                        value={r.in}
+                        onChange={val => updateReplacement(p.id, 'in', val)}
+                        fieldNames={fieldNames}
+                        pickLabel="Replace with (R3+ score only)" />
+                      {hasSwap && (
+                        <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', border: 'none', marginTop: 6, width: '100%' }}
+                          onClick={() => clearReplacement(p.id)}>
+                          ✕ Clear swap for {p.name}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -323,18 +341,13 @@ function ParticipantCard({ p, rank }) {
       border: rank === 1 ? '2px solid #B8860B' : rank === 2 ? '2px solid #aaa' : rank === 3 ? '2px solid #8B4513' : '1px solid #e0e0e0',
       borderRadius: 8, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
     }}>
-      <div style={{
-        background: rank <= 3 ? ['#B8860B','#888','#8B4513'][rank-1] : '#2E6B3E',
-        color: '#fff', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10,
-      }}>
+      <div style={{ background: rank <= 3 ? ['#B8860B','#888','#8B4513'][rank-1] : '#2E6B3E', color: '#fff', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <span style={{ fontSize: '1.3rem' }}>{medals[rank - 1] || rank}</span>
         <span style={{ fontWeight: 'bold', fontSize: '1rem', flex: 1 }}>{p.name}</span>
         <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: p.total < 0 ? '#7fff7f' : p.total > 0 ? '#ffaaaa' : '#fff' }}>
           {p.total !== null ? formatTotal(p.total) : '--'}
           {activeCount > 0 && activeCount < BEST_N && (
-            <span style={{ fontSize: '0.7rem', fontWeight: 'normal', marginLeft: 4, opacity: 0.8 }}>
-              ({activeCount} active)
-            </span>
+            <span style={{ fontSize: '0.7rem', fontWeight: 'normal', marginLeft: 4, opacity: 0.8 }}>({activeCount} active)</span>
           )}
         </span>
       </div>
@@ -344,7 +357,7 @@ function ParticipantCard({ p, rank }) {
           <tr style={{ background: '#f5f5f5' }}>
             <th style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 600, color: '#555', width: 24 }}>#</th>
             <th style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 600, color: '#555' }}>Golfer</th>
-            <th style={{ padding: '4px 8px', textAlign: 'center', fontWeight: 600, color: '#555', width: 64 }}>Score</th>
+            <th style={{ padding: '4px 8px', textAlign: 'center', fontWeight: 600, color: '#555', width: 72 }}>Score</th>
           </tr>
         </thead>
         <tbody>
@@ -356,23 +369,25 @@ function ParticipantCard({ p, rank }) {
                 borderTop: '1px solid #eee', opacity: sp.eliminated ? 0.6 : 1,
               }}>
                 <td style={{ padding: '5px 8px', color: '#aaa', fontSize: '0.75rem' }}>{i + 1}</td>
-                <td style={{ padding: '5px 8px', fontWeight: counting ? 'bold' : 'normal',
-                  color: sp.eliminated ? '#999' : '#222',
-                  textDecoration: sp.eliminated ? 'line-through' : 'none' }}>
+                <td style={{ padding: '5px 8px', fontWeight: counting ? 'bold' : 'normal', color: sp.eliminated ? '#999' : '#222', textDecoration: sp.eliminated ? 'line-through' : 'none' }}>
                   {sp.name}
+                  {sp.isReplacement && (
+                    <span title="Mid-tournament replacement — R3+ score only" style={{ marginLeft: 5, fontSize: '0.72rem', background: '#dbeafe', color: '#1d4ed8', borderRadius: 3, padding: '1px 5px', fontWeight: 'bold', verticalAlign: 'middle' }}>
+                      ♻ R3+
+                    </span>
+                  )}
                 </td>
                 <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 'bold' }}>
                   {sp.eliminated ? (
-                    <span style={{
-                      background: sp.status === 'WD' ? '#fee2e2' : '#f3f4f6',
-                      color: sp.status === 'WD' ? '#991b1b' : '#6b7280',
-                      borderRadius: 4, padding: '1px 6px', fontSize: '0.72rem', fontWeight: 'bold',
-                    }}>
+                    <span style={{ background: sp.status === 'WD' ? '#fee2e2' : '#f3f4f6', color: sp.status === 'WD' ? '#991b1b' : '#6b7280', borderRadius: 4, padding: '1px 6px', fontSize: '0.72rem', fontWeight: 'bold' }}>
                       {sp.status === 'WD' ? 'WD' : 'CUT'}
                     </span>
                   ) : (
                     <span className={scoreColorClass(sp.score)}>
                       {sp.score !== null ? sp.display : '--'}
+                      {sp.isReplacement && sp.score !== null && (
+                        <span style={{ fontSize: '0.65rem', color: '#6b7280', marginLeft: 2 }}>(R3+)</span>
+                      )}
                     </span>
                   )}
                 </td>
@@ -405,11 +420,11 @@ function ParticipantCard({ p, rank }) {
 
 // ── Leaderboard tab ───────────────────────────────────────────────────────────
 
-function LeaderboardTab({ participants, golferData, loading, error, lastUpdated, tournament, cutHasHappened }) {
+function LeaderboardTab({ participants, golferData, loading, error, lastUpdated, tournament, replacements }) {
   const golferMap = buildGolferMap(golferData);
   const scored = participants
     .filter(p => p.name && p.picks.some(Boolean))
-    .map(p => scoreParticipant(p, golferMap));
+    .map(p => scoreParticipant(p, golferMap, replacements[p.id] || null));
   const ranked = rankParticipants(scored);
 
   return (
@@ -424,9 +439,7 @@ function LeaderboardTab({ participants, golferData, loading, error, lastUpdated,
               </span>
             </div>
             {tournament?.venue && (
-              <div style={{ fontSize: '0.8rem', color: '#666' }}>
-                📍 {tournament.venue}{tournament.location ? `, ${tournament.location}` : ''}
-              </div>
+              <div style={{ fontSize: '0.8rem', color: '#666' }}>📍 {tournament.venue}{tournament.location ? `, ${tournament.location}` : ''}</div>
             )}
             <div style={{ marginLeft: 'auto', fontSize: '0.78rem', color: '#666', textAlign: 'right' }}>
               {loading && <span>🔄 Refreshing…</span>}
@@ -438,9 +451,7 @@ function LeaderboardTab({ participants, golferData, loading, error, lastUpdated,
       </div>
 
       {golferData.length === 0 && !loading && (
-        <div className="notice notice-warn">
-          No live scores yet — set up picks in ⚙️ Setup; scores appear automatically once play begins.
-        </div>
+        <div className="notice notice-warn">No live scores yet — set up picks in ⚙️ Setup; scores appear automatically once play begins.</div>
       )}
       {ranked.length === 0 ? (
         <div className="notice notice-info">No participants set up yet. Go to ⚙️ Setup to add picks.</div>
@@ -448,15 +459,10 @@ function LeaderboardTab({ participants, golferData, loading, error, lastUpdated,
         <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
             <div style={{ fontSize: '0.78rem', color: '#666' }}>
-              Best {BEST_N} of {PICKS_PER_PARTICIPANT} picks count · 🟨 highlighted = counting · CUT/WD = eliminated
+              Best {BEST_N} of {PICKS_PER_PARTICIPANT} picks count · 🟨 highlighted = counting · CUT/WD = eliminated · ♻ R3+ = replacement
             </div>
             <a href="/api/results" target="_blank" rel="noopener noreferrer"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '6px 14px', background: '#1B4F2A', color: '#F7E87C',
-                borderRadius: 4, fontSize: '0.82rem', fontWeight: 'bold',
-                textDecoration: 'none', whiteSpace: 'nowrap',
-              }}>
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: '#1B4F2A', color: '#F7E87C', borderRadius: 4, fontSize: '0.82rem', fontWeight: 'bold', textDecoration: 'none', whiteSpace: 'nowrap' }}>
               ⬇ Save Results Page
             </a>
           </div>
@@ -487,13 +493,9 @@ function ScoresTab({ golferData, loading, error, tournament }) {
           {error && <div className="notice notice-error">{error}</div>}
           <div className="btn-group" style={{ marginBottom: 12 }}>
             {['all', 'active', 'cut'].map(f => (
-              <button key={f}
-                className={`btn btn-sm ${filter === f ? 'btn-primary' : ''}`}
-                style={filter !== f ? { background: '#eee', color: '#333' } : {}}
-                onClick={() => setFilter(f)}>
-                {f === 'all'     ? `All (${golferData.length})`
-                : f === 'active' ? `Active (${golferData.filter(g => g.status === 'Active').length})`
-                :                  `MC/WD (${golferData.filter(g => g.status !== 'Active').length})`}
+              <button key={f} className={`btn btn-sm ${filter === f ? 'btn-primary' : ''}`}
+                style={filter !== f ? { background: '#eee', color: '#333' } : {}} onClick={() => setFilter(f)}>
+                {f === 'all' ? `All (${golferData.length})` : f === 'active' ? `Active (${golferData.filter(g => g.status === 'Active').length})` : `MC/WD (${golferData.filter(g => g.status !== 'Active').length})`}
               </button>
             ))}
           </div>
@@ -543,29 +545,31 @@ function ScoresTab({ golferData, loading, error, tournament }) {
 // ── Root ──────────────────────────────────────────────────────────────────────
 
 export default function Home() {
-  const [tab, setTab]                   = useState('leaderboard');
-  const [participants, setParticipants] = useState(defaultParticipants());
-  const [golferData, setGolferData]     = useState([]);
-  const [tournament, setTournament]     = useState(null);
+  const [tab, setTab]                         = useState('leaderboard');
+  const [participants, setParticipants]       = useState(defaultParticipants());
+  const [replacements, setReplacements]       = useState({});  // { participantId: { out, in } }
+  const [golferData, setGolferData]           = useState([]);
+  const [tournament, setTournament]           = useState(null);
   const [currentRound, setCurrentRound]       = useState(0);
   const [cutHasHappened, setCutHasHappened]   = useState(false);
-  const [loading, setLoading]           = useState(false);
-  const [picksLoading, setPicksLoading] = useState(true);
-  const [error, setError]               = useState(null);
-  const [lastUpdated, setLastUpdated]   = useState(null);
-  const [saveStatus, setSaveStatus]     = useState('idle'); // idle|saving|saved|error|pinbad
-  const [showPin, setShowPin]           = useState(false);
-  const [pinError, setPinError]         = useState('');
-  const timerRef  = useRef(null);
-  const pendingParticipants = useRef(null);
+  const [loading, setLoading]                 = useState(false);
+  const [picksLoading, setPicksLoading]       = useState(true);
+  const [error, setError]                     = useState(null);
+  const [lastUpdated, setLastUpdated]         = useState(null);
+  const [saveStatus, setSaveStatus]           = useState('idle');
+  const [showPin, setShowPin]                 = useState(false);
+  const [pinError, setPinError]               = useState('');
+  const [newTournamentBanner, setNewTournamentBanner] = useState('');
+  const timerRef             = useRef(null);
+  const pendingSave          = useRef(null);
 
   const fieldNames = golferData.map(g => g.name).filter(Boolean).sort((a, b) => a.localeCompare(b));
 
-  // ── Picks: load from URL param → server → localStorage cache ───────────────
+  // ── Load picks from URL → server → localStorage ───────────────────────────
   useEffect(() => {
     setPicksLoading(true);
 
-    // 1. Check URL for shared picks
+    // 1. URL-encoded picks
     try {
       const params = new URLSearchParams(window.location.search);
       const encoded = params.get('picks');
@@ -581,56 +585,42 @@ export default function Home() {
       }
     } catch {}
 
-    // 2. Try server (Gist) — check if tournament has changed
+    // 2. Server (Gist)
     fetch('/api/picks')
       .then(r => r.json())
       .then(data => {
-        const savedTournament = data.savedTournament;
-        const participants    = data.participants;
-
-        // We'll compare against live tournament name once scores load
-        // Store savedTournament so the scores useEffect can compare
-        if (savedTournament) {
-          window._savedTournament = savedTournament;
-        }
-
-        if (participants?.length) {
-          setParticipants(participants);
-          try { localStorage.setItem('pga-pool-cache', JSON.stringify(participants)); } catch {}
+        if (data.savedTournament) window._savedTournament = data.savedTournament;
+        if (data.participants?.length) {
+          setParticipants(data.participants);
+          try { localStorage.setItem('pga-pool-cache', JSON.stringify(data.participants)); } catch {}
         } else {
-          // Fall back to localStorage cache
-          const keys = ['pga-pool-cache', 'pga-pool-v4', 'pga-pool-v3', 'pga-pool-v2'];
-          for (const key of keys) {
-            try {
-              const raw = localStorage.getItem(key);
-              if (raw) {
-                const parsed = JSON.parse(raw);
-                const p = parsed?.participants || (Array.isArray(parsed) ? parsed : null);
-                if (p?.length) { setParticipants(p); break; }
-              }
-            } catch {}
-          }
+          loadFromLocalStorage();
+        }
+        if (data.replacements && Object.keys(data.replacements).length > 0) {
+          setReplacements(data.replacements);
         }
       })
-      .catch(() => {
-        const keys = ['pga-pool-cache', 'pga-pool-v4', 'pga-pool-v3', 'pga-pool-v2'];
-        for (const key of keys) {
-          try {
-            const raw = localStorage.getItem(key);
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              const p = parsed?.participants || (Array.isArray(parsed) ? parsed : null);
-              if (p?.length) { setParticipants(p); break; }
-            }
-          } catch {}
-        }
-      })
+      .catch(() => loadFromLocalStorage())
       .finally(() => setPicksLoading(false));
   }, []);
 
-  // ── Save picks flow ────────────────────────────────────────────────────────
+  function loadFromLocalStorage() {
+    const keys = ['pga-pool-cache', 'pga-pool-v4', 'pga-pool-v3', 'pga-pool-v2'];
+    for (const key of keys) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const p = parsed?.participants || (Array.isArray(parsed) ? parsed : null);
+          if (p?.length) { setParticipants(p); break; }
+        }
+      } catch {}
+    }
+  }
+
+  // ── Save ──────────────────────────────────────────────────────────────────
   function handleSaveRequest() {
-    pendingParticipants.current = participants;
+    pendingSave.current = { participants, replacements };
     setPinError('');
     setShowPin(true);
   }
@@ -643,7 +633,8 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          participants: pendingParticipants.current,
+          participants: pendingSave.current.participants,
+          replacements: pendingSave.current.replacements,
           pin,
           tournament: tournament?.name || '',
         }),
@@ -655,24 +646,17 @@ export default function Home() {
         setTimeout(() => setShowPin(true), 400);
       } else if (!res.ok || data.error) {
         setSaveStatus('error');
-        console.error('Save error:', data);
-        // Show the actual error in the UI temporarily
         setPinError(data.error || `HTTP ${res.status}`);
         setTimeout(() => { setSaveStatus('idle'); setPinError(''); }, 8000);
       } else {
         setSaveStatus('saved');
-        // Also cache locally so this device always has the latest
-        try { localStorage.setItem('pga-pool-cache', JSON.stringify(pendingParticipants.current)); } catch {}
+        try { localStorage.setItem('pga-pool-cache', JSON.stringify(pendingSave.current.participants)); } catch {}
         setTimeout(() => setSaveStatus('idle'), 4000);
       }
-    } catch {
-      setSaveStatus('error');
-    }
+    } catch { setSaveStatus('error'); }
   }
 
-  // ── Fetch live scores ──────────────────────────────────────────────────────
-  const [newTournamentBanner, setNewTournamentBanner] = useState('');
-
+  // ── Fetch scores ──────────────────────────────────────────────────────────
   const fetchScores = useCallback(async () => {
     setLoading(true); setError(null);
     try {
@@ -684,18 +668,12 @@ export default function Home() {
       setCurrentRound(data.currentRound || 0);
       setCutHasHappened(data.cutHasHappened || false);
       setLastUpdated(data.lastUpdated);
-
       const liveName = data.tournament?.name || '';
       setTournament(data.tournament || null);
-
-      // Detect tournament change — compare live name against what was saved in Gist
       const savedName = window._savedTournament || '';
       if (savedName && liveName && savedName !== liveName) {
-        // New tournament detected — clear picks (keep participant names, wipe golfer picks)
-        setParticipants(prev => prev.map(p => ({
-          ...p,
-          picks: Array(PICKS_PER_PARTICIPANT).fill(''),
-        })));
+        setParticipants(prev => prev.map(p => ({ ...p, picks: Array(PICKS_PER_PARTICIPANT).fill('') })));
+        setReplacements({});
         try { localStorage.removeItem('pga-pool-cache'); } catch {}
         window._savedTournament = liveName;
         setNewTournamentBanner(liveName);
@@ -722,20 +700,14 @@ export default function Home() {
       </Head>
 
       {showPin && (
-        <PinModal
-          onSubmit={handlePinSubmit}
-          onCancel={() => { setShowPin(false); setSaveStatus('idle'); }}
-          error={pinError}
-        />
+        <PinModal onSubmit={handlePinSubmit} onCancel={() => { setShowPin(false); setSaveStatus('idle'); }} error={pinError} />
       )}
 
       <header className="header">
         <div className="header-inner">
           <div>
             <h1>⛳ {pageTitle}</h1>
-            {tournament?.venue && (
-              <div style={{ fontSize: '0.72rem', color: '#9dc9a5', marginTop: 2 }}>📍 {tournament.venue}</div>
-            )}
+            {tournament?.venue && <div style={{ fontSize: '0.72rem', color: '#9dc9a5', marginTop: 2 }}>📍 {tournament.venue}</div>}
           </div>
           <div className="header-meta">
             {tournament?.isLive && <><span className="live-dot" />Live · </>}
@@ -747,46 +719,30 @@ export default function Home() {
 
       <div className="app">
         {picksLoading && (
-          <div style={{ textAlign: 'center', padding: 32, color: '#666', fontSize: '0.9rem' }}>
-            ⏳ Loading picks…
-          </div>
+          <div style={{ textAlign: 'center', padding: 32, color: '#666', fontSize: '0.9rem' }}>⏳ Loading picks…</div>
         )}
 
         {!picksLoading && (
           <>
             {newTournamentBanner && (
-              <div className="notice" style={{
-                background: '#1B4F2A', color: '#F7E87C',
-                border: 'none', borderRadius: 8, padding: '14px 20px',
-                marginBottom: 16, display: 'flex', alignItems: 'center',
-                justifyContent: 'space-between', gap: 12,
-              }}>
+              <div className="notice" style={{ background: '#1B4F2A', color: '#F7E87C', border: 'none', borderRadius: 8, padding: '14px 20px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <span>
-                  <strong>⛳ New tournament: {newTournamentBanner}</strong>
-                  <br />
-                  <span style={{ fontSize: '0.85rem', opacity: 0.85 }}>
-                    Golfer picks have been cleared — go to ⚙️ Setup Picks to enter new picks, then save.
-                  </span>
+                  <strong>⛳ New tournament: {newTournamentBanner}</strong><br />
+                  <span style={{ fontSize: '0.85rem', opacity: 0.85 }}>Golfer picks have been cleared — go to ⚙️ Setup Picks to enter new picks, then save.</span>
                 </span>
-                <button onClick={() => setNewTournamentBanner('')} style={{
-                  background: 'none', border: '1px solid #F7E87C', color: '#F7E87C',
-                  borderRadius: 4, padding: '4px 10px', cursor: 'pointer', whiteSpace: 'nowrap',
-                  fontSize: '0.8rem',
-                }}>Dismiss</button>
+                <button onClick={() => setNewTournamentBanner('')} style={{ background: 'none', border: '1px solid #F7E87C', color: '#F7E87C', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', whiteSpace: 'nowrap', fontSize: '0.8rem' }}>Dismiss</button>
               </div>
             )}
+
             <nav className="tabs">
               {[
                 { id: 'leaderboard', label: '🏆 Leaderboard' },
                 { id: 'setup',       label: '⚙️ Setup Picks' },
                 { id: 'scores',      label: '📊 Full Scores' },
               ].map(t => (
-                <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
-                  {t.label}
-                </button>
+                <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>
               ))}
-              <button className="btn btn-sm btn-primary"
-                style={{ marginLeft: 'auto', alignSelf: 'center' }}
+              <button className="btn btn-sm btn-primary" style={{ marginLeft: 'auto', alignSelf: 'center' }}
                 onClick={fetchScores} disabled={loading}>
                 {loading ? '🔄' : '↻'} Refresh
               </button>
@@ -794,11 +750,14 @@ export default function Home() {
 
             {tab === 'leaderboard' && (
               <LeaderboardTab participants={participants} golferData={golferData} loading={loading}
-                error={error} lastUpdated={lastUpdated} tournament={tournament} cutHasHappened={cutHasHappened} />
+                error={error} lastUpdated={lastUpdated} tournament={tournament}
+                replacements={replacements} />
             )}
             {tab === 'setup' && (
               <SetupTab participants={participants} onChange={setParticipants}
-                fieldNames={fieldNames} onSave={handleSaveRequest} saveStatus={saveStatus} />
+                fieldNames={fieldNames} onSave={handleSaveRequest} saveStatus={saveStatus}
+                cutHasHappened={cutHasHappened}
+                replacements={replacements} onReplacementsChange={setReplacements} />
             )}
             {tab === 'scores' && (
               <ScoresTab golferData={golferData} loading={loading} error={error} tournament={tournament} />
