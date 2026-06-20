@@ -110,10 +110,11 @@ function parseESPN(json) {
     // Pattern B: player has 3 linescores but R3 is blank "-" AND at least one
     //            other competitor has a real R3 score (confirms R3 is underway,
     //            not just everyone waiting to tee off)
+    // Pattern A: <=2 linescores when R3+ is underway = WD/DNS
+    // Pattern B: DISABLED until we identify the correct ESPN field to detect MC
+    //            (r3HasStarted alone is not enough — pre-R3 players also have blank R3)
     const patternA = cutHasHappened && linescores.length <= 2 && rounds[0] !== null;
-    const patternB = cutHasHappened && linescores.length >= 3
-      && rounds[0] !== null && rounds[1] !== null && rounds[2] === null
-      && r3HasStarted;
+    const patternB = false; // TODO: re-enable once cut detection signal is confirmed
     // Determine elimination type
     // WD: only 1 real round (withdrew during or before R1/R2)
     // MC: 2 real rounds completed but didn't advance
