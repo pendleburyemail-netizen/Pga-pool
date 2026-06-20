@@ -1,11 +1,5 @@
 // pages/api/scores.js
-// Proxies ESPN's PGA Tour scoreboard.
-//
-// CUT DETECTION: ESPN removes cut players from the competitor list after R2.
-// We detect this by:
-//   1. Counting max linescores across all competitors (= current round)
-//   2. Any picked player absent from the list when currentRound >= 3 = CUT
-//   3. Also triggers when the event status is FINAL (tournament over)
+// Proxies ESPN PGA scoreboard. Cut detection uses top-60-plus-ties rule.
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -38,7 +32,7 @@ function parseScore(str) {
   if (str === null || str === undefined) return null;
   const s = String(str).trim();
   if (s === 'E' || s === 'EVEN') return 0;
-  if (s === '--' || s === '') return null;
+  if (s === '--' || s === '' || s === '-') return null;
   const n = parseInt(s, 10);
   return isNaN(n) ? null : n;
 }
@@ -51,44 +45,27 @@ function formatScore(score) {
 
 function parseESPN(json) {
   const events = json.events || [];
-
-  // Prefer in-progress, then most recent
   let chosenEvent = events.find(e =>
     (e.status?.type?.name || '').includes('IN_PROGRESS')
   ) || events[events.length - 1] || events[0] || null;
 
   if (!chosenEvent) {
-    return { tournament: null, golfers: [], currentRound: 0, cutHasHappened: false, lastUpdated: new Date().toISOString() };
+    return { tournament: null, golfers: [], currentRound: 0, cutHasHappened: false, cutLine: null, lastUpdated: new Date().toISOString() };
   }
 
   const competition = (chosenEvent.competitions || [])[0] || {};
   const competitors = competition.competitors || [];
   const par = competition.situation?.parTotal || 72;
-
   const tStatus = (chosenEvent.status || {}).type || {};
   const isFinal = tStatus.name === 'STATUS_FINAL' || !!tStatus.completed;
   const isInProgress = (tStatus.name || '').includes('IN_PROGRESS');
 
-  // Count max rounds played by any competitor in the field
-  const maxLinescores = competitors.reduce((max, c) =>
-    Math.max(max, (c.linescores || []).length), 0
-  );
-
-  // Current round: use ESPN's period/round if available, else infer from linescores
+  const maxLinescores = competitors.reduce((m, c) => Math.max(m, (c.linescores || []).length), 0);
   const currentRound = competition.period || maxLinescores || 0;
-
-  // Cut has happened once R3 starts, or when the event is final
   const cutHasHappened = isFinal || currentRound >= 3;
 
-  // R3 has started only when at least one competitor has a real (non-null) R3 score
-  const r3HasStarted = competitors.some(c => {
-    const ls = c.linescores || [];
-    if (ls.length < 3) return false;
-    const r3val = ls[2]?.displayValue;
-    return r3val !== null && r3val !== undefined && r3val !== '-' && r3val !== '--' && r3val !== '';
-  });
-
-  const golfers = competitors.map(comp => {
+  // ── Parse all raw scores first ──────────────────────────────────────────────
+  const rawGolfers = competitors.map(comp => {
     const athlete = comp.athlete || {};
     const name = (athlete.displayName || athlete.fullName || '').trim();
     const linescores = comp.linescores || [];
@@ -104,32 +81,56 @@ function parseESPN(json) {
     }
 
     const totalRaw = parseScore(comp.score);
+    const realRounds = rounds.filter(r => r !== null).length;
 
-    // Cut detection:
-    // Pattern A: player has <= 2 linescores when field is in R3+ (WD/DNS)
-    // Pattern B: player has 3 linescores but R3 is blank "-" AND at least one
-    //            other competitor has a real R3 score (confirms R3 is underway,
-    //            not just everyone waiting to tee off)
-    // Pattern A: <=2 linescores when R3+ is underway = WD/DNS
-    // Pattern B: DISABLED until we identify the correct ESPN field to detect MC
-    //            (r3HasStarted alone is not enough — pre-R3 players also have blank R3)
-    const patternA = cutHasHappened && linescores.length <= 2 && rounds[0] !== null;
-    const patternB = false; // TODO: re-enable once cut detection signal is confirmed
-    // Determine elimination type
-    // WD: only 1 real round (withdrew during or before R1/R2)
-    // MC: 2 real rounds completed but didn't advance
-    const realRounds = [rounds[0], rounds[1], rounds[2], rounds[3]].filter(r => r !== null).length;
-    const eliminationType = (patternA && realRounds <= 1) ? 'WD' : 'MC';
-    const missedCut = patternA || patternB;
+    return { name, nameKey: normalizeName(name), rounds, totalRaw, realRounds, linescoreCount: linescores.length };
+  });
+
+  // ── Calculate cut line: top 60 + ties ──────────────────────────────────────
+  // Only consider players who completed exactly 2 real rounds (R1+R2 done, R3 not started)
+  // i.e. realRounds === 2 regardless of linescore placeholder count
+  let cutLine = null;
+  if (cutHasHappened) {
+    const twoRoundScores = rawGolfers
+      .filter(g => g.realRounds >= 2 && g.totalRaw !== null)
+      .map(g => g.totalRaw)
+      .sort((a, b) => a - b);
+
+    if (twoRoundScores.length >= 60) {
+      cutLine = twoRoundScores[59]; // score of player in 60th position (0-indexed)
+    } else if (twoRoundScores.length > 0) {
+      cutLine = twoRoundScores[twoRoundScores.length - 1];
+    }
+  }
+
+  // ── Assign cut status ───────────────────────────────────────────────────────
+  const golfers = rawGolfers.map(g => {
+    const { name, nameKey, rounds, totalRaw, realRounds, linescoreCount } = g;
+
+    let missedCut = false;
+    let status = 'Active';
+
+    if (cutHasHappened) {
+      if (realRounds <= 1) {
+        // Withdrew before or during R1
+        missedCut = true;
+        status = 'WD';
+      } else if (realRounds === 2 && cutLine !== null && totalRaw !== null && totalRaw > cutLine) {
+        // Completed 2 rounds but scored above cut line
+        missedCut = true;
+        status = 'MC';
+      }
+      // realRounds >= 3 = made the cut and is playing R3/R4
+    }
 
     return {
       name,
-      nameKey: normalizeName(name),
+      nameKey,
       r1: rounds[0], r2: rounds[1], r3: rounds[2], r4: rounds[3],
       total: missedCut ? null : totalRaw,
-      displayTotal: missedCut ? eliminationType : formatScore(totalRaw),
-      status: missedCut ? eliminationType : 'Active',
-      position: comp.status?.position?.displayText || null,
+      displayTotal: missedCut ? status : formatScore(totalRaw),
+      status,
+      position: null,
     };
   });
 
@@ -157,7 +158,8 @@ function parseESPN(json) {
       par,
     },
     currentRound,
-    cutHasHappened,  // explicit flag — true when R3+ or event final
+    cutHasHappened,
+    cutLine,
     golfers,
     lastUpdated: new Date().toISOString(),
   };
