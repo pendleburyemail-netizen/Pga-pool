@@ -80,6 +80,14 @@ function parseESPN(json) {
   // Cut has happened once R3 starts, or when the event is final
   const cutHasHappened = isFinal || currentRound >= 3;
 
+  // R3 has started only when at least one competitor has a real (non-null) R3 score
+  const r3HasStarted = competitors.some(c => {
+    const ls = c.linescores || [];
+    if (ls.length < 3) return false;
+    const r3val = ls[2]?.displayValue;
+    return r3val !== null && r3val !== undefined && r3val !== '-' && r3val !== '--' && r3val !== '';
+  });
+
   const golfers = competitors.map(comp => {
     const athlete = comp.athlete || {};
     const name = (athlete.displayName || athlete.fullName || '').trim();
@@ -97,22 +105,15 @@ function parseESPN(json) {
 
     const totalRaw = parseScore(comp.score);
 
-    // Cut detection — two ESPN patterns:
-    // Pattern A: cut players removed entirely, leaving linescores.length <= 2
-    // Pattern B: cut players have 3 linescores but R3 is a blank "-" placeholder
-    //            AND their ESPN status indicates they are cut/eliminated
-    // We check the ESPN status type name for cut indicators, falling back to
-    // score-based heuristics only when status is unavailable.
-    const statusName = ((comp.status || {}).type || {}).name || '';
-    const statusDesc = ((comp.status || {}).type || {}).description || '';
-    const espnSaysCut = statusName.includes('CUT') || statusDesc.toUpperCase().includes('CUT') ||
-                        statusName.includes('WITHDRAW') || statusDesc.toUpperCase().includes('WD');
-
+    // Cut detection:
+    // Pattern A: player has <= 2 linescores when field is in R3+ (WD/DNS)
+    // Pattern B: player has 3 linescores but R3 is blank "-" AND at least one
+    //            other competitor has a real R3 score (confirms R3 is underway,
+    //            not just everyone waiting to tee off)
     const patternA = cutHasHappened && linescores.length <= 2 && rounds[0] !== null;
-    // Pattern B: 3 linescores, R3 is null/blank, AND ESPN confirms cut status
     const patternB = cutHasHappened && linescores.length >= 3
       && rounds[0] !== null && rounds[1] !== null && rounds[2] === null
-      && espnSaysCut;
+      && r3HasStarted;
     // Determine elimination type
     // WD: only 1 real round (withdrew during or before R1/R2)
     // MC: 2 real rounds completed but didn't advance
