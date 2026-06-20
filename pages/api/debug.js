@@ -42,7 +42,7 @@ export default async function handler(req, res) {
         r1: (c.linescores || [])[0]?.displayValue,
         r2: (c.linescores || [])[1]?.displayValue,
         r3: (c.linescores || [])[2]?.displayValue,
-        patternA: maxLS >= 3 && (c.linescores || []).length <= 2,
+        patternA: maxLinescores >= 3 && (c.linescores || []).length <= 2,
         patternB: (c.linescores || []).length >= 3 && (c.linescores || [])[0]?.displayValue !== undefined && (c.linescores || [])[1]?.displayValue !== undefined && ((c.linescores || [])[2]?.displayValue === '-' || (c.linescores || [])[2]?.displayValue === undefined || (c.linescores || [])[2]?.displayValue === null),
         statusTypeName: c.status?.type?.name,
       })),
