@@ -97,17 +97,36 @@ function parseESPN(json) {
 
     const totalRaw = parseScore(comp.score);
 
-    // Cut detection: when the field is in R3+, players with only 2 linescores
-    // completed R1+R2 but did not advance — they missed the cut.
-    const missedCut = cutHasHappened && linescores.length <= 2;
+    // Cut detection — two ESPN patterns:
+    // Pattern A: cut players removed entirely, leaving linescores.length <= 2
+    // Pattern B: cut players have 3 linescores but R3 is a blank "-" placeholder
+    //            AND their ESPN status indicates they are cut/eliminated
+    // We check the ESPN status type name for cut indicators, falling back to
+    // score-based heuristics only when status is unavailable.
+    const statusName = ((comp.status || {}).type || {}).name || '';
+    const statusDesc = ((comp.status || {}).type || {}).description || '';
+    const espnSaysCut = statusName.includes('CUT') || statusDesc.toUpperCase().includes('CUT') ||
+                        statusName.includes('WITHDRAW') || statusDesc.toUpperCase().includes('WD');
+
+    const patternA = cutHasHappened && linescores.length <= 2 && rounds[0] !== null;
+    // Pattern B: 3 linescores, R3 is null/blank, AND ESPN confirms cut status
+    const patternB = cutHasHappened && linescores.length >= 3
+      && rounds[0] !== null && rounds[1] !== null && rounds[2] === null
+      && espnSaysCut;
+    // Determine elimination type
+    // WD: only 1 real round (withdrew during or before R1/R2)
+    // MC: 2 real rounds completed but didn't advance
+    const realRounds = [rounds[0], rounds[1], rounds[2], rounds[3]].filter(r => r !== null).length;
+    const eliminationType = (patternA && realRounds <= 1) ? 'WD' : 'MC';
+    const missedCut = patternA || patternB;
 
     return {
       name,
       nameKey: normalizeName(name),
       r1: rounds[0], r2: rounds[1], r3: rounds[2], r4: rounds[3],
       total: missedCut ? null : totalRaw,
-      displayTotal: missedCut ? 'CUT' : formatScore(totalRaw),
-      status: missedCut ? 'MC' : 'Active',
+      displayTotal: missedCut ? eliminationType : formatScore(totalRaw),
+      status: missedCut ? eliminationType : 'Active',
       position: comp.status?.position?.displayText || null,
     };
   });
