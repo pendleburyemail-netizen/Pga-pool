@@ -86,9 +86,17 @@ function parseESPN(json) {
     return { name, nameKey: normalizeName(name), rounds, totalRaw, realRounds, linescoreCount: linescores.length };
   });
 
-  // ── Calculate cut line: top 60 + ties ──────────────────────────────────────
-  // Only consider players who completed exactly 2 real rounds (R1+R2 done, R3 not started)
-  // i.e. realRounds === 2 regardless of linescore placeholder count
+  // ── Calculate cut line using tournament-specific rule ─────────────────────
+  // Masters: top 50 + ties
+  // US Open, Open Championship, PGA Championship: top 60 + ties (low 60)
+  // All other PGA Tour events: top 65 + ties
+  const eventNameLower = (chosenEvent.name || '').toLowerCase();
+  const cutPosition =
+    eventNameLower.includes('masters') ? 50 :
+    eventNameLower.includes('u.s. open') || eventNameLower.includes('us open') ||
+    eventNameLower.includes('open championship') || eventNameLower.includes('pga championship') ? 60 :
+    65; // standard PGA Tour
+
   let cutLine = null;
   if (cutHasHappened) {
     const twoRoundScores = rawGolfers
@@ -96,8 +104,8 @@ function parseESPN(json) {
       .map(g => g.totalRaw)
       .sort((a, b) => a - b);
 
-    if (twoRoundScores.length >= 60) {
-      cutLine = twoRoundScores[59]; // score of player in 60th position (0-indexed)
+    if (twoRoundScores.length >= cutPosition) {
+      cutLine = twoRoundScores[cutPosition - 1]; // 0-indexed
     } else if (twoRoundScores.length > 0) {
       cutLine = twoRoundScores[twoRoundScores.length - 1];
     }
