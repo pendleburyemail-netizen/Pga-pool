@@ -1,4 +1,4 @@
-// pages/api/debug.js — temporary diagnostic endpoint
+// pages/api/debug.js
 
 export default async function handler(req, res) {
   try {
@@ -13,48 +13,31 @@ export default async function handler(req, res) {
     const competitors = comp.competitors || [];
 
     const maxLinescores = competitors.length > 0
-      ? Math.max(...competitors.map(c => (c.linescores || []).length))
-      : 0;
+      ? Math.max(...competitors.map(c => (c.linescores || []).length)) : 0;
 
-    const r3HasStarted = competitors.some(c => {
-      const ls = c.linescores || [];
-      if (ls.length < 3) return false;
-      const r3val = ls[2]?.displayValue;
-      return r3val !== null && r3val !== undefined && r3val !== '-' && r3val !== '--' && r3val !== '';
-    });
+    // Show order values and scores around the cut bubble
+    // to see if order resets or jumps for cut players
+    const withOrder = competitors.map(c => ({
+      name: c.athlete?.displayName,
+      order: c.order,
+      score: c.score,
+      linescoreCount: (c.linescores || []).length,
+      r3: (c.linescores || [])[2]?.displayValue ?? null,
+      // Check linescores for any extra fields beyond displayValue
+      linescore0keys: c.linescores?.[0] ? Object.keys(c.linescores[0]).join(', ') : 'none',
+      linescore2keys: c.linescores?.[2] ? Object.keys(c.linescores[2]).join(', ') : 'none',
+      // Full linescore[2] object for cut players
+      linescore2full: c.linescores?.[2] || null,
+    }));
 
-    // Sample: first 3 (leaders), middle 3 (around cut line), last 3 (missed cut)
-    const mid = Math.floor(competitors.length / 2);
-    const sample = [
-      ...competitors.slice(0, 3),
-      ...competitors.slice(mid - 1, mid + 2),
-      ...competitors.slice(-3),
-    ];
-
+    // Show first 5, players 50-55 (around cut), last 10
     const out = {
       eventName: ev.name,
-      eventStatus: ev.status?.type?.name,
       totalCompetitors: competitors.length,
       maxLinescores,
-      r3HasStarted,
-      cutLine: comp.situation?.cutLine || null,
-      sampleCompetitors: sample.map(c => {
-        const ls = c.linescores || [];
-        return {
-          name: c.athlete?.displayName,
-          score: c.score,
-          linescoreCount: ls.length,
-          linescores: ls.map(l => l.displayValue),
-          // Full status object to see what ESPN provides
-          statusType: c.status?.type,
-          statusPeriod: c.status?.period,
-          statusDisplayClock: c.status?.displayClock,
-          statusShortDetail: c.status?.shortDetail,
-          statusDetail: c.status?.detail,
-          // Any other top-level fields on competitor
-          competitorKeys: Object.keys(c).join(', '),
-        };
-      }),
+      orderFirst5: withOrder.slice(0, 5),
+      orderAround50: withOrder.slice(48, 56),
+      orderLast10: withOrder.slice(-10),
     };
 
     res.setHeader('Content-Type', 'application/json');
