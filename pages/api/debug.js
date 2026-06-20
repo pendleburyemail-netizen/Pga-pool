@@ -26,14 +26,25 @@ export default async function handler(req, res) {
       eventStatusDesc: ev.status?.type?.description,
       totalCompetitors: competitors.length,
       currentRoundDetected: Math.max(...competitors.map(c => (c.linescores || []).length), 0),
+      // Look for cut line in various places ESPN might put it
+      cutLine: comp.situation?.cutLine
+        || comp.cutLine
+        || ev.competitions?.[0]?.situation?.cutLine
+        || ev.situation?.cutLine
+        || null,
+      compKeys: Object.keys(comp).join(', '),
+      situationKeys: comp.situation ? Object.keys(comp.situation).join(', ') : 'none',
       sampleCompetitors: sample.map(c => ({
         name: c.athlete?.displayName,
         score: c.score,
         linescoreCount: (c.linescores || []).length,
         linescores: (c.linescores || []).map(ls => ls.displayValue),
+        r1: (c.linescores || [])[0]?.displayValue,
+        r2: (c.linescores || [])[1]?.displayValue,
+        r3: (c.linescores || [])[2]?.displayValue,
+        patternA: maxLS >= 3 && (c.linescores || []).length <= 2,
+        patternB: (c.linescores || []).length >= 3 && (c.linescores || [])[0]?.displayValue !== undefined && (c.linescores || [])[1]?.displayValue !== undefined && ((c.linescores || [])[2]?.displayValue === '-' || (c.linescores || [])[2]?.displayValue === undefined || (c.linescores || [])[2]?.displayValue === null),
         statusTypeName: c.status?.type?.name,
-        statusDesc: c.status?.type?.description,
-        statusShortDetail: c.status?.shortDetail,
       })),
     };
 
