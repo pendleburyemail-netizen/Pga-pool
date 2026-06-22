@@ -15,10 +15,17 @@ async function loadPicks() {
     });
     if (!res.ok) return null;
     const gist = await res.json();
-    const content = gist.files?.[GIST_FILE]?.content;
-    if (!content) return null;
-    const parsed = JSON.parse(content);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+    const raw = gist.files?.[GIST_FILE]?.content;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Support both old format (plain array) and new format ({ tournament, participants, replacements })
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return { participants: parsed, replacements: {} };
+    }
+    if (parsed?.participants?.length > 0) {
+      return { participants: parsed.participants, replacements: parsed.replacements || {} };
+    }
+    return null;
   } catch { return null; }
 }
 
@@ -213,7 +220,9 @@ function generateHTML(tournament, ranked, generatedAt) {
 
 export default async function handler(req, res) {
   // Load picks and scores in parallel
-  const [participants, scoresData] = await Promise.all([loadPicks(), loadScores()]);
+  const [picksData, scoresData] = await Promise.all([loadPicks(), loadScores()]);
+  const participants = picksData?.participants || null;
+  const replacements = picksData?.replacements || {};
 
   if (!participants) {
     return res.status(404).send('<h2>No picks found — save picks first via the pool app.</h2>');
@@ -227,7 +236,7 @@ export default async function handler(req, res) {
 
   const scored = participants
     .filter(p => p.name && p.picks?.some(Boolean))
-    .map(p => scoreParticipant(p, golferMap, cutHasHappened));
+    .map(p => scoreParticipant(p, golferMap, replacements[p.id] || null));
 
   const ranked = rankParticipants(scored);
   const html = generateHTML(tournament, ranked, new Date().toISOString());
