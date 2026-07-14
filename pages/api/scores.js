@@ -66,7 +66,17 @@ function parseESPN(json) {
       }, inProgress[0]);
     }
   } else {
-    chosenEvent = events[events.length - 1] || events[0] || null;
+    // No event in progress — prefer majors, then largest field
+    const majorScheduled = events.find(isMajor);
+    if (majorScheduled) {
+      chosenEvent = majorScheduled;
+    } else {
+      chosenEvent = events.reduce((best, e) => {
+        const count = (e.competitions?.[0]?.competitors || []).length;
+        const bestCount = (best.competitions?.[0]?.competitors || []).length;
+        return count > bestCount ? e : best;
+      }, events[0]);
+    }
   }
 
   if (!chosenEvent) {
