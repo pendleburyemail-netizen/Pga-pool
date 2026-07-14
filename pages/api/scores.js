@@ -45,9 +45,29 @@ function formatScore(score) {
 
 function parseESPN(json) {
   const events = json.events || [];
-  let chosenEvent = events.find(e =>
-    (e.status?.type?.name || '').includes('IN_PROGRESS')
-  ) || events[events.length - 1] || events[0] || null;
+  // Priority: 1) Majors in progress, 2) Any event in progress with most competitors,
+  // 3) Most recent completed, 4) First event
+  const MAJORS = ['masters', 'u.s. open', 'us open', 'open championship', 'pga championship'];
+  const isMajor = e => MAJORS.some(m => (e.name || '').toLowerCase().includes(m));
+  const inProgress = events.filter(e => (e.status?.type?.name || '').includes('IN_PROGRESS'));
+
+  let chosenEvent = null;
+  if (inProgress.length > 0) {
+    // Among in-progress events, prefer majors, then largest field
+    const majorInProgress = inProgress.find(isMajor);
+    if (majorInProgress) {
+      chosenEvent = majorInProgress;
+    } else {
+      // Pick the one with most competitors (biggest/most important event)
+      chosenEvent = inProgress.reduce((best, e) => {
+        const count = (e.competitions?.[0]?.competitors || []).length;
+        const bestCount = (best.competitions?.[0]?.competitors || []).length;
+        return count > bestCount ? e : best;
+      }, inProgress[0]);
+    }
+  } else {
+    chosenEvent = events[events.length - 1] || events[0] || null;
+  }
 
   if (!chosenEvent) {
     return { tournament: null, golfers: [], currentRound: 0, cutHasHappened: false, cutLine: null, lastUpdated: new Date().toISOString() };
