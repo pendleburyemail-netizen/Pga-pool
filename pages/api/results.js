@@ -29,91 +29,18 @@ async function loadPicks() {
   } catch { return null; }
 }
 
-async function loadScores() {
+async function loadScores(req) {
   try {
-    const res = await fetch(
-      'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard',
-      { headers: { 'User-Agent': 'Mozilla/5.0' } }
-    );
+    // Call our own /api/scores which has all the correct event selection
+    // and cut detection logic already built in
+    const host = req.headers.host;
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const res = await fetch(`${protocol}://${host}/api/scores`);
     if (!res.ok) return null;
-    // Re-use the scores parsing logic by calling our own API
-    const raw = await res.json();
-    return parseESPN(raw);
+    return await res.json();
   } catch { return null; }
 }
 
-// Inline score parsing (mirrors scores.js)
-function parseScore(str) {
-  if (str === null || str === undefined) return null;
-  const s = String(str).trim();
-  if (s === 'E' || s === 'EVEN') return 0;
-  if (s === '--' || s === '') return null;
-  const n = parseInt(s, 10);
-  return isNaN(n) ? null : n;
-}
-
-function parseESPN(json) {
-  const events = json.events || [];
-  let ev = events.find(e => (e.status?.type?.name || '').includes('IN_PROGRESS'))
-    || events[events.length - 1] || events[0] || null;
-  if (!ev) return null;
-
-  const comp = (ev.competitions || [])[0] || {};
-  const competitors = comp.competitors || [];
-  const par = comp.situation?.parTotal || 72;
-  const tStatus = (ev.status || {}).type || {};
-  const isFinal = tStatus.name === 'STATUS_FINAL' || !!tStatus.completed;
-  const maxLS = competitors.reduce((m, c) => Math.max(m, (c.linescores || []).length), 0);
-  const cutHasHappened = isFinal || maxLS >= 3;
-
-  const golfers = competitors.map(c => {
-    const name = (c.athlete?.displayName || '').trim();
-    const ls = c.linescores || [];
-    const rounds = [null,null,null,null];
-    for (let r = 0; r < Math.min(ls.length, 4); r++) {
-      rounds[r] = ls[r].displayValue !== undefined ? parseScore(ls[r].displayValue)
-        : ls[r].value !== undefined ? Math.round(ls[r].value - par) : null;
-    }
-    const totalRaw = parseScore(c.score);
-    const missedCut = cutHasHappened && ls.length <= 2;
-    return {
-      name, nameKey: normalizeName(name),
-      r1: rounds[0], r2: rounds[1], r3: rounds[2], r4: rounds[3],
-      total: missedCut ? null : totalRaw,
-      displayTotal: missedCut ? 'CUT' : formatScore(totalRaw),
-      status: missedCut ? 'MC' : 'Active',
-    };
-  });
-
-  return {
-    tournament: {
-      name: ev.name || 'PGA Tour Event',
-      venue: comp.venue?.fullName || '',
-      location: [comp.venue?.city, comp.venue?.state, comp.venue?.country].filter(Boolean).join(', '),
-      isFinal,
-      status: tStatus.description || '',
-    },
-    cutHasHappened,
-    golfers,
-  };
-}
-
-function scoreColor(score) {
-  if (score === null || score === undefined) return '#666';
-  if (score < 0) return '#166534';
-  if (score > 0) return '#991b1b';
-  return '#333';
-}
-
-function medal(rank) {
-  return ['🥇','🥈','🥉'][rank-1] || rank;
-}
-
-function formatTotal(t) {
-  if (t === null || t === undefined) return '--';
-  if (t === 0) return 'E';
-  return t > 0 ? `+${t}` : `${t}`;
-}
 
 function generateHTML(tournament, ranked, generatedAt) {
   const rows = ranked.map(p => {
@@ -220,7 +147,7 @@ function generateHTML(tournament, ranked, generatedAt) {
 
 export default async function handler(req, res) {
   // Load picks and scores in parallel
-  const [picksData, scoresData] = await Promise.all([loadPicks(), loadScores()]);
+  const [picksData, scoresData] = await Promise.all([loadPicks(), loadScores(req)]);
   const participants = picksData?.participants || null;
   const replacements = picksData?.replacements || {};
 
