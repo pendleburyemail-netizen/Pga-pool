@@ -42,6 +42,19 @@ async function loadScores(req) {
 }
 
 
+function scoreColor(score) {
+  if (score === null || score === undefined) return '#666';
+  if (score < 0) return '#166534';
+  if (score > 0) return '#991b1b';
+  return '#333';
+}
+function medal(rank) { return ['🥇','🥈','🥉'][rank-1] || rank; }
+function formatTotal(t) {
+  if (t === null || t === undefined) return '--';
+  if (t === 0) return 'E';
+  return t > 0 ? `+${t}` : `${t}`;
+}
+
 function generateHTML(tournament, ranked, generatedAt) {
   const rows = ranked.map(p => {
     const sortedPicks = [...p.scoredPicks]
